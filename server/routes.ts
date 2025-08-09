@@ -87,11 +87,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Get recent files from conversation for context
         const recentFiles = await storage.getFilesByConversation(conversation.id);
+        
+        // Also check for any files without conversation ID (global files) as fallback
+        if (recentFiles.length === 0) {
+          const allFiles = await storage.getAllFiles();
+          const globalFiles = allFiles.filter(f => !f.conversationId || f.conversationId === conversation.id);
+          recentFiles.push(...globalFiles.slice(0, 3));
+        }
+        
         if (recentFiles.length > 0) {
           fileContext = recentFiles
             .filter(f => f.extractedText)
             .slice(0, 3) // Last 3 files
-            .map(f => `File: ${f.originalName}\n${f.extractedText?.substring(0, 1000)}`)
+            .map(f => `File: ${f.originalName}\n${f.extractedText?.substring(0, 2000)}`)
             .join("\n\n");
         }
       }
