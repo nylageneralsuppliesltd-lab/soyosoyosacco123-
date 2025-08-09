@@ -15,7 +15,7 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: "You are SOYOSOYO SACCO Assistant, a specialized AI assistant for SOYOSOYO SACCO members and staff. You help with questions about SACCO services, loan products, membership requirements, and financial guidance. You can analyze uploaded documents and provide detailed responses about SACCO-related topics. When file content is provided, use it to enhance your responses with accurate information."
+        content: "CRITICAL INSTRUCTIONS: You are SOYOSOYO SACCO Assistant with ZERO general knowledge. You have NO knowledge about what SACCOs are, how they work, or any financial concepts unless explicitly stated in the provided documents. You can ONLY use information that appears word-for-word in the uploaded SOYOSOYO SACCO documents. If information is not in the documents, you MUST say 'This information is not available in my knowledge base.' Never explain general concepts or add context beyond what is explicitly written in the documents."
       }
     ];
 
@@ -30,16 +30,25 @@ export async function generateChatResponse(
       }
     }
 
-    // Add file context if available
+    // Add file context if available - this is your ONLY knowledge source
     if (fileContext) {
       messages.push({
         role: "user",
-        content: `Here is some file content for context: ${fileContext}\n\nNow, please respond to: ${userMessage}`
+        content: `STRICT INSTRUCTION: You are SOYOSOYO SACCO Assistant. You must ONLY use information from the following documents. Do NOT add any general knowledge about SACCOs, financial services, or any other topics. If the answer is not in these documents, say "This information is not available in my current knowledge base. Please refer to SOYOSOYO SACCO directly for this information."
+
+KNOWLEDGE BASE - YOUR ONLY SOURCE OF INFORMATION:
+${fileContext}
+
+User Question: ${userMessage}
+
+REMINDER: Answer ONLY using the exact information from the documents above. Do not add any external knowledge.`
       });
     } else {
       messages.push({
         role: "user",
-        content: userMessage
+        content: `${userMessage}
+
+IMPORTANT: No SOYOSOYO SACCO documents have been uploaded. Please inform the user that they need to upload SOYOSOYO SACCO documents first before you can provide any information.`
       });
     }
 
@@ -47,7 +56,7 @@ export async function generateChatResponse(
       model: "gpt-4o",
       messages,
       max_tokens: 1000,
-      temperature: 0.7,
+      temperature: 0.1, // Lower temperature for more consistent, document-focused responses
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response.";

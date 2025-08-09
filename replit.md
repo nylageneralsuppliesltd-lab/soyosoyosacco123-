@@ -42,9 +42,9 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Integration
 - **OpenAI API**: Integration with GPT-4o model for SOYOSOYO SACCO-specific chat responses and file analysis
-- **SACCO Assistant Persona**: Specialized system prompts and responses tailored for SACCO services, loan products, and member support
+- **SACCO Assistant Persona**: Specialized system prompts with ZERO general knowledge - responses are strictly limited to information contained in uploaded SOYOSOYO SACCO documents only
 - **File Processing**: Automated text extraction and analysis for uploaded documents and images
-- **Context Management**: Conversation history and file content used to enhance AI responses with SACCO-specific information
+- **Document-Only Knowledge**: System configured to refuse any questions not directly answerable from uploaded documents, ensuring complete adherence to provided materials without external knowledge contamination
 
 ### File Upload System
 - **Supported Formats**: Text files, PDFs, images (JPEG, PNG, GIF, WebP), Office documents, JSON, CSV
