@@ -55,21 +55,21 @@ export default function Dashboard() {
 
   const getPageTitle = () => {
     switch (currentView) {
-      case "overview": return "API Overview";
+      case "overview": return "SOYOSOYO SACCO Assistant Dashboard";
       case "endpoints": return "API Endpoints";
-      case "testing": return "Chat Testing";
+      case "testing": return "SOYOSOYO SACCO Assistant";
       case "files": return "File Management";
       case "history": return "Conversation History";
-      case "monitoring": return "Monitoring";
+      case "monitoring": return "System Monitoring";
       default: return "Dashboard";
     }
   };
 
   const getPageDescription = () => {
     switch (currentView) {
-      case "overview": return "Monitor and test your chatbot backend services";
+      case "overview": return "Monitor and manage SOYOSOYO SACCO Assistant services";
       case "endpoints": return "API endpoint documentation and testing";
-      case "testing": return "Test chat functionality with AI responses";
+      case "testing": return "Chat with SOYOSOYO SACCO Assistant for member services";
       case "files": return "Upload and process files for analysis";
       case "history": return "View conversation history and activity logs";
       case "monitoring": return "Performance metrics and system monitoring";

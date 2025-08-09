@@ -15,7 +15,7 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: "You are a helpful AI assistant. You can help users with questions, analyze uploaded files, and provide detailed responses. If file content is provided, use it to enhance your responses."
+        content: "You are SOYOSOYO SACCO Assistant, a specialized AI assistant for SOYOSOYO SACCO members and staff. You help with questions about SACCO services, loan products, membership requirements, and financial guidance. You can analyze uploaded documents and provide detailed responses about SACCO-related topics. When file content is provided, use it to enhance your responses with accurate information."
       }
     ];
 

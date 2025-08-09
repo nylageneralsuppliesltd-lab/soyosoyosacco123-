@@ -12,7 +12,7 @@ interface SidebarProps {
 const navigationItems = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "endpoints", label: "API Endpoints", icon: Plug },
-  { id: "testing", label: "Chat Testing", icon: MessageSquare },
+  { id: "testing", label: "SACCO Assistant", icon: MessageSquare },
   { id: "files", label: "File Management", icon: Upload },
   { id: "history", label: "Conversation History", icon: History },
   { id: "monitoring", label: "Monitoring", icon: Activity },
@@ -33,8 +33,8 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
             <Bot className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Chatbot API</h1>
-            <p className="text-sm text-slate-500">v1.0.0</p>
+            <h1 className="text-lg font-semibold text-slate-900">SOYOSOYO SACCO</h1>
+            <p className="text-sm text-slate-500">Assistant Dashboard</p>
           </div>
         </div>
       </div>

@@ -93,8 +93,8 @@ export default function ChatTesting({ expanded = false }: ChatTestingProps) {
       <div className="p-6 border-b border-slate-200">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Quick Chat Test</h3>
-            <p className="text-slate-600 text-sm mt-1">Test the chatbot API directly</p>
+            <h3 className="text-lg font-semibold text-slate-900">SOYOSOYO SACCO Assistant</h3>
+            <p className="text-slate-600 text-sm mt-1">Chat with your AI assistant for SACCO services</p>
           </div>
           {testMessages.length > 0 && (
             <Button variant="outline" size="sm" onClick={clearChat}>
@@ -111,7 +111,7 @@ export default function ChatTesting({ expanded = false }: ChatTestingProps) {
             <div className="flex items-center justify-center h-full text-slate-500">
               <div className="text-center">
                 <Bot className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p>Start a conversation to test the chatbot</p>
+                <p>Hello! I'm SOYOSOYO SACCO Assistant. How can I help you today?</p>
               </div>
             </div>
           ) : (

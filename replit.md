@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack TypeScript application that provides a chatbot backend service with OpenAI integration, file upload capabilities, and an administrative dashboard. The system features a React frontend for monitoring and testing the chatbot API, with an Express.js backend that handles chat interactions, file processing, and analytics tracking.
+This is a full-stack TypeScript application that provides the SOYOSOYO SACCO Assistant - a specialized chatbot backend service with OpenAI integration, file upload capabilities, and an administrative dashboard. The system features a React frontend for monitoring and testing the chatbot API, with an Express.js backend that handles chat interactions, file processing, and analytics tracking specifically tailored for SACCO services and member support.
 
 ## User Preferences
 
@@ -41,9 +41,10 @@ Preferred communication style: Simple, everyday language.
 - **API Security**: No authentication layer implemented - designed for internal or development use
 
 ### AI Integration
-- **OpenAI API**: Integration with GPT-4o model for chat responses and file analysis
+- **OpenAI API**: Integration with GPT-4o model for SOYOSOYO SACCO-specific chat responses and file analysis
+- **SACCO Assistant Persona**: Specialized system prompts and responses tailored for SACCO services, loan products, and member support
 - **File Processing**: Automated text extraction and analysis for uploaded documents and images
-- **Context Management**: Conversation history and file content used to enhance AI responses
+- **Context Management**: Conversation history and file content used to enhance AI responses with SACCO-specific information
 
 ### File Upload System
 - **Supported Formats**: Text files, PDFs, images (JPEG, PNG, GIF, WebP), Office documents, JSON, CSV
