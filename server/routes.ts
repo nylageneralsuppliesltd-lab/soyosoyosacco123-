@@ -95,13 +95,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recentFiles.push(...globalFiles.slice(0, 3));
         }
         
+        console.log(`DEBUG: Found ${recentFiles.length} files for conversation ${conversation.id}`);
+        recentFiles.forEach(f => console.log(`- ${f.originalName}: ${f.extractedText ? f.extractedText.length : 0} chars`));
+        
         if (recentFiles.length > 0) {
           fileContext = recentFiles
-            .filter(f => f.extractedText)
+            .filter(f => f.extractedText && f.extractedText.trim().length > 50)
             .slice(0, 3) // Last 3 files
-            .map(f => `File: ${f.originalName}\n${f.extractedText?.substring(0, 2000)}`)
+            .map(f => `File: ${f.originalName}\n${f.extractedText?.substring(0, 8000)}`) // Increased context size
             .join("\n\n");
         }
+        
+        console.log(`DEBUG: File context length: ${fileContext.length} characters`);
       }
 
       // Save user message

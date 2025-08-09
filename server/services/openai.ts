@@ -95,8 +95,14 @@ Provide a summary and key insights from this file.`
   }
 }
 
-export async function analyzeImage(base64Image: string, fileName: string): Promise<string> {
+export async function analyzeImage(base64Image: string, promptOrFileName: string): Promise<string> {
   try {
+    // If it's a specific OCR extraction request, use that prompt directly
+    const isOCRRequest = promptOrFileName.includes("Extract all text content");
+    const prompt = isOCRRequest 
+      ? promptOrFileName 
+      : `Analyze this image (${promptOrFileName}) and describe its contents, key elements, and any notable features.`;
+      
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -105,18 +111,18 @@ export async function analyzeImage(base64Image: string, fileName: string): Promi
           content: [
             {
               type: "text",
-              text: `Analyze this image (${fileName}) and describe its contents, key elements, and any notable features.`
+              text: prompt
             },
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`
+                url: `data:application/pdf;base64,${base64Image}`
               }
             }
           ],
         },
       ],
-      max_tokens: 500,
+      max_tokens: isOCRRequest ? 2000 : 500,
     });
 
     return response.choices[0].message.content || "Could not analyze image.";
