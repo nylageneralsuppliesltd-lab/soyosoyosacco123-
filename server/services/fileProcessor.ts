@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { analyzeFileContent, analyzeImage } from "./openai";
+import { analyzeFileContent } from "./openai"; // Remove analyzeImage since PDFs are handled by processPdfFile
 
 export async function processUploadedFile(
   filePath: string,
@@ -9,14 +9,12 @@ export async function processUploadedFile(
 ): Promise<{ extractedText: string; analysis: string }> {
   try {
     await fs.access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
-    if (mimeType.startsWith("image/")) {
-      return await processImage(filePath, fileName);
-    } else if (mimeType.startsWith("text/") || mimeType === "application/json") {
+    if (mimeType.startsWith("text/") || mimeType === "application/json") {
       return await processTextFile(filePath, fileName, mimeType);
     } else if (mimeType === "application/pdf") {
       return await processPdfFile(filePath, fileName, mimeType);
     } else {
-      return await processTextFile(filePath, fileName, mimeType);
+      throw new Error(`Unsupported file type: ${mimeType}`);
     }
   } catch (error) {
     console.error(`File processing error for ${fileName}:`, error);
@@ -24,20 +22,6 @@ export async function processUploadedFile(
       extractedText: "Could not extract text from file",
       analysis: `Error processing file: ${error instanceof Error ? error.message : "Unknown error"}`
     };
-  }
-}
-
-async function processImage(filePath: string, fileName: string): Promise<{ extractedText: string; analysis: string }> {
-  try {
-    const imageBuffer = await fs.readFile(filePath);
-    const base64Image = imageBuffer.toString("base64");
-    const analysis = await analyzeImage(base64Image, fileName);
-    return {
-      extractedText: `Image file: ${fileName}`,
-      analysis
-    };
-  } catch (error) {
-    throw new Error(`Failed to process image: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
