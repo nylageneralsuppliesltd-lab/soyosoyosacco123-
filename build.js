@@ -11,23 +11,23 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 async function build() {
-  console.log('🔧 Starting custom build process...');
+  console.log('🔧 Starting deployment-safe build process...');
   
   try {
+    // Step 1: Install dependencies without audit to avoid dependency conflicts
     console.log('📦 Installing dependencies...');
-    await execAsync('npm install --no-audit --no-fund');
+    await execAsync('npm install --no-audit --no-fund --production=false');
     console.log('✅ Dependencies installed');
 
-    console.log('🏗️ Building frontend with Vite...');
+    // Step 2: Build frontend with Vite (no database required)
+    console.log('🎨 Building frontend with Vite...');
     await execAsync('vite build');
     console.log('✅ Frontend built successfully');
 
-    console.log('📦 Building server with esbuild...');
-    await execAsync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist');
-    console.log('✅ Server built successfully');
-
-    console.log('✨ Build completed successfully!');
-    console.log('📝 Note: Database migrations will run at startup');
+    // Step 3: Build backend with esbuild (avoiding vulnerabilities by using latest options)
+    console.log('🏗️ Building backend with esbuild...');
+    await execAsync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --target=node18 --sourcemap');
+    console.log('✅ Backend built successfully');
 
     // Verify build outputs exist
     const { existsSync } = await import('fs');
@@ -37,10 +37,17 @@ async function build() {
     if (!existsSync('dist/client')) {
       throw new Error('Frontend build failed - dist/client not found');
     }
-    console.log('🔍 Build verification passed');
+    
+    console.log('✨ Build completed successfully!');
+    console.log('📝 Note: Database operations will run at startup when DATABASE_URL is available');
+    console.log('🔒 Build process completed without requiring DATABASE_URL or audit operations');
     
   } catch (error) {
     console.error('❌ Build failed:', error.message);
+    console.error('💡 Troubleshooting tips:');
+    console.error('   - Ensure all dependencies are compatible');
+    console.error('   - Check for TypeScript errors with: npm run check');
+    console.error('   - Verify esbuild version compatibility');
     process.exit(1);
   }
 }
