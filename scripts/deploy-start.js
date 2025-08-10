@@ -13,7 +13,7 @@ try {
     process.exit(1);
   }
 
-  if (!existsSync('dist/client')) {
+  if (!existsSync('dist/public')) {
     console.error('❌ Built client not found. Build failed or incomplete.');
     process.exit(1);
   }

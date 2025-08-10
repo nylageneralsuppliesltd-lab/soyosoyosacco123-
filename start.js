@@ -20,7 +20,7 @@ async function start() {
       console.error('❌ Built server not found. Run build command first.');
       process.exit(1);
     }
-    if (!existsSync('dist/client')) {
+    if (!existsSync('dist/public')) {
       console.error('❌ Built client not found. Run build command first.');
       process.exit(1);
     }

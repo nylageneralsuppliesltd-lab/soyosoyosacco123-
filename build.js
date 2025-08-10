@@ -34,8 +34,8 @@ async function build() {
     if (!existsSync('dist/index.js')) {
       throw new Error('Backend build failed - dist/index.js not found');
     }
-    if (!existsSync('dist/client')) {
-      throw new Error('Frontend build failed - dist/client not found');
+    if (!existsSync('dist/public')) {
+      throw new Error('Frontend build failed - dist/public not found');
     }
     
     console.log('✨ Build completed successfully!');
