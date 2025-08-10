@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en">s
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -380,7 +380,9 @@
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
-                this.apiBaseUrl = window.location.origin; // Change this to your API URL if different
+                // IMPORTANT: Replace with your deployed API URL after deployment
+                // Example: this.apiBaseUrl = "https://your-project-name.replit.app";
+                this.apiBaseUrl = window.location.origin; // Change this to your deployed API URL
                 
                 this.chatButton = document.getElementById('chatButton');
                 this.chatWindow = document.getElementById('chatWindow');
