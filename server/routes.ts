@@ -76,9 +76,92 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  router.get("/api/stats", async (req, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      const files = await storage.getAllFiles();
+      const apiLogs = await storage.getApiLogs();
+      
+      res.json({
+        totalConversations: conversations.length,
+        totalFiles: files.length,
+        totalApiCalls: apiLogs.length,
+        systemStatus: "operational",
+        lastProcessedFile: files.length > 0 ? files[files.length - 1].filename : null,
+        lastActivity: apiLogs.length > 0 ? apiLogs[apiLogs.length - 1].timestamp : null
+      });
+    } catch (error) {
+      console.error("Stats error:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  router.get("/api/conversations", async (req, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      res.json(conversations);
+    } catch (error) {
+      console.error("Conversations error:", error);
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  router.get("/api/files", async (req, res) => {
+    try {
+      const files = await storage.getAllFiles();
+      res.json(files);
+    } catch (error) {
+      console.error("Files error:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
   router.post("/api/chat", async (req, res) => {
-    // Existing chat route logic
-    // Ensure it uses storage.getMessagesByConversation and storage.createMessage
+    try {
+      const { message, conversationId } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      // Create conversation if it doesn't exist
+      let conversation;
+      if (conversationId) {
+        conversation = await storage.getConversation(conversationId);
+      }
+      
+      if (!conversation) {
+        conversation = await storage.createConversation({
+          title: message.substring(0, 50) + "...",
+        });
+      }
+
+      // Save user message
+      await storage.createMessage({
+        conversationId: conversation.id,
+        content: message,
+        role: "user",
+      });
+
+      // For now, return a simple response
+      const response = "Thank you for your message. The SOYOSOYO SACCO Assistant is configured to help with questions about our services, loans, and bylaws. How can I assist you today?";
+      
+      // Save assistant message
+      const assistantMessage = await storage.createMessage({
+        conversationId: conversation.id,
+        content: response,
+        role: "assistant",
+      });
+
+      res.json({
+        response,
+        conversationId: conversation.id,
+        messageId: assistantMessage.id,
+      });
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(500).json({ error: "Failed to process chat message" });
+    }
   });
 
   app.use("/", router);
