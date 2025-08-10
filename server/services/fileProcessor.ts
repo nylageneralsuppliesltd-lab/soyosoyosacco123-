@@ -1,12 +1,13 @@
 import fs from "fs/promises";
 import path from "path";
-import { analyzeFileContent } from "./openai"; // Remove analyzeImage since PDFs are handled by processPdfFile
+import { analyzeFileContent } from "./openai"; // In server/services/
 
 export async function processUploadedFile(
   filePath: string,
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
+  console.log(`DEBUG: Processing file ${filePath} (${mimeType})`);
   try {
     await fs.access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
     if (mimeType.startsWith("text/") || mimeType === "application/json") {
@@ -31,7 +32,7 @@ async function processPdfFile(
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
   try {
-    console.log(`Processing PDF: ${fileName} using pdfjs-dist...`);
+    console.log(`DEBUG: Processing PDF: ${fileName} using pdfjs-dist...`);
     const dataBuffer = await fs.readFile(filePath);
     const pdfjsModule = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const pdfjs = pdfjsModule.default || pdfjsModule;
@@ -53,9 +54,10 @@ async function processPdfFile(
     }
     extractedText = extractedText.trim();
     if (!extractedText || extractedText.length < 50) {
+      console.log(`DEBUG: No text found in ${fileName}, may be image-based`);
       throw new Error("No readable text content found in PDF");
     }
-    console.log(`Extracted ${extractedText.length} characters from ${fileName}`);
+    console.log(`DEBUG: Extracted ${extractedText.length} characters from ${fileName}`);
     const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
     const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
     return { extractedText, analysis };
@@ -75,6 +77,7 @@ async function processTextFile(
 ): Promise<{ extractedText: string; analysis: string }> {
   try {
     const content = await fs.readFile(filePath, "utf-8");
+    console.log(`DEBUG: Extracted ${content.length} characters from ${fileName}`);
     const limitedContent = content.length > 4000 ? content.substring(0, 4000) + "..." : content;
     const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
     return { extractedText: content, analysis };
@@ -84,20 +87,22 @@ async function processTextFile(
 }
 
 export async function cleanupFile(filePath: string): Promise<void> {
-  console.log(`Kept file: ${filePath}`); // Skip deletion to persist files
+  console.log(`DEBUG: Kept file: ${filePath}`);
 }
 
 export async function readAssetsFiles(fileNames: string[]): Promise<string> {
-  const assetsDir = path.join(__dirname, "..", "attached_assets");
+  const assetsDir = path.join(__dirname, "..", "..", "attached_assets"); // Adjusted for server/services/
+  console.log(`DEBUG: Reading files from ${assetsDir}`);
   let extractedText = "";
   for (const file of fileNames) {
     const filePath = path.join(assetsDir, file);
+    console.log(`DEBUG: Accessing file ${filePath}`);
     try {
       await fs.access(filePath);
-      const mimeType = "application/pdf"; // Both files are PDFs
+      const mimeType = "application/pdf";
       const { extractedText: text } = await processUploadedFile(filePath, file, mimeType);
       extractedText += `File: ${file}\n${text}\n\n`;
-      console.log(`Read ${file}: ${text.length} chars`);
+      console.log(`DEBUG: Read ${file}: ${text.length} chars`);
     } catch (error) {
       console.error(`Error reading ${file}:`, error);
     }
