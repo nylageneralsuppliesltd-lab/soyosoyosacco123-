@@ -115,8 +115,15 @@ registerRoutes(app).then(async () => {
     
     // Fallback to index.html for SPA routing (but not for API routes)
     app.use("*", (req, res, next) => {
-      // Don't serve index.html for API routes
-      if (req.originalUrl.startsWith('/api/') || req.originalUrl.startsWith('/health')) {
+      // Don't serve index.html for API routes, assets, or Vite-specific routes
+      if (req.originalUrl.startsWith('/api/') || 
+          req.originalUrl.startsWith('/health') ||
+          req.originalUrl.startsWith('/@') ||
+          req.originalUrl.startsWith('/src/') ||
+          req.originalUrl.includes('.js') ||
+          req.originalUrl.includes('.css') ||
+          req.originalUrl.includes('.tsx') ||
+          req.originalUrl.includes('.ts')) {
         return next();
       }
       res.sendFile(path.resolve(distPath, "index.html"));

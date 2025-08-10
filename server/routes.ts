@@ -32,6 +32,21 @@ export async function registerRoutes(app: express.Express) {
     next();
   });
 
+  // Ensure all API routes are properly prefixed to avoid conflicts with Vite
+  router.use((req, res, next) => {
+    // Skip middleware for static assets and Vite HMR
+    if (req.path.startsWith('/@') || 
+        req.path.startsWith('/src/') || 
+        req.path.startsWith('/node_modules/') ||
+        req.path.includes('.js') || 
+        req.path.includes('.css') ||
+        req.path.includes('.tsx') ||
+        req.path.includes('.ts')) {
+      return next();
+    }
+    next();
+  });
+
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
