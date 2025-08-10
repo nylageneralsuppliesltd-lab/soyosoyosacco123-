@@ -5,15 +5,30 @@ import { processUploadedFile } from "./services/fileProcessor";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { setupVite } from "./vite";
+import { createServer } from "http";
+import { insertFileSchema } from "../shared/schema";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { insertFileSchema } from "../shared/schema";
-import { eq } from "drizzle-orm";
 
 async function preloadAssets() {
   const assetsDir = path.join(__dirname, "..", "attached_assets");
   const assetFiles = ["SOYOSOYO BY LAWS -2025_1754774335855.pdf", "loan policy_1754774281152.pdf"];
   console.log(`DEBUG: Preloading assets from ${assetsDir}`);
+
+  // Create initial conversation for assets if it doesn't exist
+  try {
+    let initialConversation = await storage.getConversation("initial-assets");
+    if (!initialConversation) {
+      initialConversation = await storage.createConversation({
+        id: "initial-assets",
+        title: "Initial SACCO Documents",
+      });
+      console.log("DEBUG: Created initial conversation for assets");
+    }
+  } catch (error) {
+    console.error("Error creating initial conversation:", error);
+  }
 
   for (const fileName of assetFiles) {
     const filePath = path.join(assetsDir, fileName);
@@ -54,12 +69,24 @@ async function preloadAssets() {
   }
 }
 
+import { setupVite } from "./vite";
+import { createServer } from "http";
+
 const app = express();
 app.use(express.json());
-app.use(express.static("client/dist"));
 
-registerRoutes(app).then(async (server) => {
+const server = createServer(app);
+
+registerRoutes(app).then(async () => {
+  // Setup Vite development server
+  await setupVite(app, server);
+  
+  // Preload assets after Vite is set up
   await preloadAssets();
+  
   const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Frontend available at http://localhost:${PORT}`);
+  });
 });

@@ -38,12 +38,12 @@ export async function registerRoutes(app: express.Express) {
         metadata: { analysis },
       });
 
-      await storage.createFile({
+      const createdFile = await storage.createFile({
         ...fileData,
         content: file.buffer.toString("base64"),
       });
 
-      res.json({ id: fileData.id, filename, originalName: file.originalname, mimeType, size, analysis });
+      res.json({ id: createdFile.id, filename, originalName: file.originalname, mimeType, size, analysis });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Failed to process file" });
