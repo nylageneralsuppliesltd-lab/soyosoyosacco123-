@@ -28,6 +28,7 @@ export const uploadedFiles = pgTable("uploaded_files", {
   size: integer("size").notNull(),
   extractedText: text("extracted_text"),
   metadata: jsonb("metadata"),
+  content: text("content"), // Store file content as base64
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
 });
