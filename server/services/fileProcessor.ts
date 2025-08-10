@@ -104,13 +104,13 @@ export async function cleanupFile(filePath: string): Promise<void> {
 }
 
 export async function readAssetsFiles(fileNames: string[]): Promise<string> {
-  const assetsDir = path.join(__dirname, "..", "attached_assets"); // Changed to attached_assets
+  const assetsDir = path.join(__dirname, "..", "attached_assets");
   let extractedText = "";
   for (const file of fileNames) {
     const filePath = path.join(assetsDir, file);
     try {
       await fs.access(filePath);
-      const mimeType = file.endsWith(".pdf") ? "application/pdf" : "text/plain";
+      const mimeType = "application/pdf"; // Both files are PDFs
       const { extractedText: text } = await processUploadedFile(filePath, file, mimeType);
       extractedText += `File: ${file}\n${text}\n\n`;
       console.log(`Read ${file}: ${text.length} chars`);
