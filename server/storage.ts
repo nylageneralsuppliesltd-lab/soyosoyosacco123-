@@ -13,11 +13,78 @@ import {
   insertMessageSchema,
   insertFileSchema,
   insertApiLogSchema,
-} from "../../shared/schema"; // Updated path
+} from "../shared/schema";
 import { eq } from "drizzle-orm";
 
 // Initialize database
 const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+export const db = drizzle(sql);
 
-// ... rest of the file unchanged ...
+// Storage interface implementation
+export const storage = {
+  // Conversation methods
+  async createConversation(data: any) {
+    const [result] = await db.insert(conversations).values(data).returning();
+    return result;
+  },
+
+  async getConversation(id: string) {
+    const [result] = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return result;
+  },
+
+  async getAllConversations() {
+    return await db.select().from(conversations).orderBy(conversations.createdAt);
+  },
+
+  // Message methods
+  async createMessage(data: any) {
+    const [result] = await db.insert(messages).values(data).returning();
+    return result;
+  },
+
+  async getMessagesByConversation(conversationId: string) {
+    return await db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.timestamp);
+  },
+
+  // File methods
+  async createFile(data: any) {
+    const [result] = await db.insert(uploadedFiles).values(data).returning();
+    return result;
+  },
+
+  async getFile(id: string) {
+    const [result] = await db.select().from(uploadedFiles).where(eq(uploadedFiles.id, id)).limit(1);
+    return result;
+  },
+
+  async getAllFiles() {
+    return await db.select().from(uploadedFiles).orderBy(uploadedFiles.uploadedAt);
+  },
+
+  async getFilesByConversation(conversationId: string) {
+    return await db.select().from(uploadedFiles).where(eq(uploadedFiles.conversationId, conversationId));
+  },
+
+  // API Log methods
+  async createApiLog(data: any) {
+    const [result] = await db.insert(apiLogs).values(data).returning();
+    return result;
+  },
+
+  async getApiLogs() {
+    return await db.select().from(apiLogs).orderBy(apiLogs.timestamp);
+  }
+};
+
+// Export schemas for external use
+export { 
+  conversations, 
+  messages, 
+  uploadedFiles, 
+  apiLogs,
+  insertConversationSchema,
+  insertMessageSchema,
+  insertFileSchema,
+  insertApiLogSchema
+};

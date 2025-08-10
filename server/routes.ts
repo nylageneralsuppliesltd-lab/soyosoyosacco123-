@@ -3,9 +3,8 @@ import { processUploadedFile } from "./services/fileProcessor";
 import { storage } from "./storage";
 import { v4 as uuidv4 } from "uuid";
 import multer from "multer";
-import { insertFileSchema } from "./db/schema";
+import { insertFileSchema, uploadedFiles } from "../shared/schema";
 import { db } from "./storage";
-import { uploadedFiles } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });

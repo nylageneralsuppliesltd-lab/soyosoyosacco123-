@@ -4,8 +4,10 @@ import { storage } from "./storage";
 import { processUploadedFile } from "./services/fileProcessor";
 import fs from "fs/promises";
 import path from "path";
-import { insertFileSchema } from "./db/schema";
-import { db, uploadedFiles } from "./storage";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { insertFileSchema } from "../shared/schema";
 import { eq } from "drizzle-orm";
 
 async function preloadAssets() {
@@ -23,13 +25,11 @@ async function preloadAssets() {
       const { extractedText, analysis } = await processUploadedFile(fileBuffer, fileName, mimeType);
 
       // Check if file already exists in database
-      const [existingFile] = await db
-        .select({ id: uploadedFiles.id })
-        .from(uploadedFiles)
-        .where(eq(uploadedFiles.filename, fileName))
-        .limit(1);
+      const existingFiles = await storage.getAllFiles().then(files => 
+        files.filter(f => f.filename === fileName)
+      );
 
-      if (!existingFile) {
+      if (existingFiles.length === 0) {
         const fileData = insertFileSchema.parse({
           conversationId: "initial-assets",
           filename: fileName,
