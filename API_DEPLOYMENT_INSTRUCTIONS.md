@@ -12,7 +12,7 @@ Google Sites only hosts **static content** (HTML, CSS, JavaScript, images). It *
 3. Configure settings:
    - **Machine Power**: Shared vCPU 1X (sufficient for SACCO chat)
    - **Max Instances**: 3-5 (handles multiple users)
-   - **Run Command**: `npm run start` (or `npm run dev`)
+   - **Run Command**: `node start.js`
 4. Click **"Deploy"**
 5. **Copy your deployment URL** (looks like: `https://your-project-name.replit.app`)
 
