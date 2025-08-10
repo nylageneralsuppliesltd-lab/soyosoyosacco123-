@@ -1,19 +1,18 @@
-import fs from "fs/promises";
-import path from "path";
-import { analyzeFileContent } from "./openai"; // In server/services/
+import { analyzeFileContent } from "./openai";
+import { fromBuffer } from "pdf2pic";
+import Tesseract from "tesseract.js";
 
 export async function processUploadedFile(
-  filePath: string,
+  fileBuffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
-  console.log(`DEBUG: Processing file ${filePath} (${mimeType})`);
+  console.log(`DEBUG: Processing file ${fileName} (${mimeType})`);
   try {
-    await fs.access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
     if (mimeType.startsWith("text/") || mimeType === "application/json") {
-      return await processTextFile(filePath, fileName, mimeType);
+      return await processTextFile(fileBuffer, fileName, mimeType);
     } else if (mimeType === "application/pdf") {
-      return await processPdfFile(filePath, fileName, mimeType);
+      return await processPdfFile(fileBuffer, fileName, mimeType);
     } else {
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
@@ -21,24 +20,23 @@ export async function processUploadedFile(
     console.error(`File processing error for ${fileName}:`, error);
     return {
       extractedText: "Could not extract text from file",
-      analysis: `Error processing file: ${error instanceof Error ? error.message : "Unknown error"}`
+      analysis: `Error processing file: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
   }
 }
 
 async function processPdfFile(
-  filePath: string,
+  fileBuffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
   try {
     console.log(`DEBUG: Processing PDF: ${fileName} using pdfjs-dist...`);
-    const dataBuffer = await fs.readFile(filePath);
     const pdfjsModule = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const pdfjs = pdfjsModule.default || pdfjsModule;
     const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(dataBuffer),
-      verbosity: 0
+      data: new Uint8Array(fileBuffer),
+      verbosity: 0,
     });
     const pdfDocument = await loadingTask.promise;
     let extractedText = "";
@@ -54,8 +52,18 @@ async function processPdfFile(
     }
     extractedText = extractedText.trim();
     if (!extractedText || extractedText.length < 50) {
-      console.log(`DEBUG: No text found in ${fileName}, may be image-based`);
-      throw new Error("No readable text content found in PDF");
+      console.log(`DEBUG: No text found in ${fileName}, attempting OCR...`);
+      const output = await fromBuffer(fileBuffer, { format: "png", density: 100 }).bulk(-1);
+      let ocrText = "";
+      for (const page of output) {
+        const imageBuffer = page.buffer;
+        const { data: { text } } = await Tesseract.recognize(imageBuffer, "eng");
+        ocrText += `\n\n=== Page ${page.page} ===\n\n${text}`;
+      }
+      extractedText = ocrText.trim();
+      if (!extractedText || extractedText.length < 50) {
+        throw new Error("No readable text content found in PDF, even with OCR");
+      }
     }
     console.log(`DEBUG: Extracted ${extractedText.length} characters from ${fileName}`);
     const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
@@ -65,18 +73,18 @@ async function processPdfFile(
     console.error(`PDF processing failed for ${fileName}:`, error);
     return {
       extractedText: `Could not extract readable text from PDF: ${fileName}.`,
-      analysis: `Error processing PDF: ${error instanceof Error ? error.message : "Unknown error"}`
+      analysis: `Error processing PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
   }
 }
 
 async function processTextFile(
-  filePath: string,
+  fileBuffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
   try {
-    const content = await fs.readFile(filePath, "utf-8");
+    const content = fileBuffer.toString("utf-8");
     console.log(`DEBUG: Extracted ${content.length} characters from ${fileName}`);
     const limitedContent = content.length > 4000 ? content.substring(0, 4000) + "..." : content;
     const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
@@ -86,23 +94,27 @@ async function processTextFile(
   }
 }
 
-export async function cleanupFile(filePath: string): Promise<void> {
-  console.log(`DEBUG: Kept file: ${filePath}`);
+export async function cleanupFile(_filePath: string): Promise<void> {
+  console.log(`DEBUG: No file cleanup needed (stored in PostgreSQL)`);
 }
 
 export async function readAssetsFiles(fileNames: string[]): Promise<string> {
-  const assetsDir = path.join(__dirname, "..", "..", "attached_assets"); // Adjusted for server/services/
-  console.log(`DEBUG: Reading files from ${assetsDir}`);
+  console.log(`DEBUG: Reading asset files from database`);
   let extractedText = "";
   for (const file of fileNames) {
-    const filePath = path.join(assetsDir, file);
-    console.log(`DEBUG: Accessing file ${filePath}`);
+    console.log(`DEBUG: Accessing file metadata for ${file}`);
     try {
-      await fs.access(filePath);
-      const mimeType = "application/pdf";
-      const { extractedText: text } = await processUploadedFile(filePath, file, mimeType);
-      extractedText += `File: ${file}\n${text}\n\n`;
-      console.log(`DEBUG: Read ${file}: ${text.length} chars`);
+      const [dbFile] = await db
+        .select({ extractedText: uploadedFiles.extractedText })
+        .from(uploadedFiles)
+        .where(eq(uploadedFiles.filename, file))
+        .limit(1);
+      if (dbFile?.extractedText) {
+        extractedText += `File: ${file}\n${dbFile.extractedText}\n\n`;
+        console.log(`DEBUG: Read ${file}: ${dbFile.extractedText.length} chars`);
+      } else {
+        console.error(`No extracted text found for ${file}`);
+      }
     } catch (error) {
       console.error(`Error reading ${file}:`, error);
     }
