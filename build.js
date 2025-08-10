@@ -9,9 +9,9 @@ import { existsSync } from 'fs';
 console.log('🔨 Starting custom build process...');
 
 try {
-  // Step 1: Install dependencies (if needed)
+  // Step 1: Install dependencies with legacy peer deps resolution
   console.log('📦 Installing dependencies...');
-  execSync('npm install', { stdio: 'inherit' });
+  execSync('npm install --legacy-peer-deps', { stdio: 'inherit' });
 
   // Step 2: Build frontend with Vite
   console.log('🎨 Building frontend...');

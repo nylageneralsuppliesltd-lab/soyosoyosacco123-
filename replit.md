@@ -115,8 +115,16 @@ The deployment has been fixed to resolve the following issues:
 - `OPENAI_API_KEY`: OpenAI API key for chat functionality
 - `NODE_ENV`: Set to "production"
 
-### Recent Changes (January 2025)
+### Recent Changes (August 2025)
 - Fixed deployment build failures by removing drizzle-kit push from build script
 - Added custom build.js script for clean compilation without database dependencies
 - Added custom start.js script for proper production startup with database migrations
+- Resolved npm dependency conflicts using --legacy-peer-deps flag in build script
+- Created separate audit-fix.js script to handle npm audit vulnerabilities in development
+- Updated build script to handle production deployments without requiring DATABASE_URL during build phase
 - Created comprehensive deployment documentation in DEPLOYMENT_FIX.md
+
+### Security and Vulnerability Management
+- npm audit vulnerabilities (moderate severity esbuild issues) are handled separately from production builds
+- audit-fix.js script available for development use to address security vulnerabilities
+- Production builds use stable dependency resolution to avoid deployment failures
