@@ -69,9 +69,6 @@ async function preloadAssets() {
   }
 }
 
-import { setupVite } from "./vite";
-import { createServer } from "http";
-
 const app = express();
 
 // Enable CORS for all routes to support embedding in Google Sites
@@ -99,7 +96,7 @@ registerRoutes(app).then(async () => {
   // Preload assets after Vite is set up
   await preloadAssets();
   
-  const PORT = process.env.PORT || 5000;
+  const PORT = Number(process.env.PORT) || 5000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Frontend available at http://localhost:${PORT}`);
