@@ -90,6 +90,20 @@ export default function Dashboard() {
               <p className="text-slate-600 mt-1">{getPageDescription()}</p>
             </div>
             <div className="flex items-center space-x-4">
+              <a 
+                href="/chat" 
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                💬 Chat Widget Preview
+              </a>
+              <a 
+                href="/embed-chat.html" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                🌐 Google Sites Embed
+              </a>
               <div className="flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg">
                 <Server className="h-4 w-4 text-slate-500" />
                 <span className="text-sm text-slate-600">
