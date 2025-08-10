@@ -123,6 +123,7 @@ The deployment has been fixed to resolve the following issues:
 - Created separate audit-fix.js script to handle npm audit vulnerabilities in development
 - Updated build script to handle production deployments without requiring DATABASE_URL during build phase
 - Created comprehensive deployment documentation in DEPLOYMENT_FIX.md
+- **Fixed NPM dependency conflict**: Updated @types/node from version 20.16.11 to ^22.17.1 to satisfy Vite 7.1.1 peer dependency requirements (^20.19.0 || >=22.12.0)
 
 ### Security and Vulnerability Management
 - npm audit vulnerabilities (moderate severity esbuild issues) are handled separately from production builds
