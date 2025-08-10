@@ -118,7 +118,7 @@ export async function registerRoutes(app: express.Express) {
 
   router.post("/api/chat", async (req, res) => {
     try {
-      const { message, conversationId } = req.body;
+      const { message, conversationId, includeContext = true } = req.body;
       
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
@@ -132,7 +132,7 @@ export async function registerRoutes(app: express.Express) {
       
       if (!conversation) {
         conversation = await storage.createConversation({
-          title: message.substring(0, 50) + "...",
+          title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
         });
       }
 
@@ -143,18 +143,35 @@ export async function registerRoutes(app: express.Express) {
         role: "user",
       });
 
-      // For now, return a simple response
-      const response = "Thank you for your message. The SOYOSOYO SACCO Assistant is configured to help with questions about our services, loans, and bylaws. How can I assist you today?";
+      // Get conversation history
+      const history = await storage.getMessagesByConversation(conversation.id);
+      
+      // Get file context if requested
+      let fileContext = "";
+      if (includeContext) {
+        const files = await storage.getAllFiles();
+        const relevantFiles = files.filter(f => f.extractedText && f.extractedText.length > 0);
+        
+        if (relevantFiles.length > 0) {
+          fileContext = relevantFiles
+            .map(f => `=== ${f.originalName} ===\n${f.extractedText}`)
+            .join('\n\n');
+        }
+      }
+
+      // Generate AI response using the OpenAI service
+      const { generateChatResponse } = await import("./services/openai");
+      const aiResponse = await generateChatResponse(message, history, fileContext);
       
       // Save assistant message
       const assistantMessage = await storage.createMessage({
         conversationId: conversation.id,
-        content: response,
+        content: aiResponse,
         role: "assistant",
       });
 
       res.json({
-        response,
+        response: aiResponse,
         conversationId: conversation.id,
         messageId: assistantMessage.id,
       });

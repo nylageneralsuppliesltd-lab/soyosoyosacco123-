@@ -14,7 +14,23 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: "CRITICAL INSTRUCTIONS: You are SOYOSOYO SACCO Assistant with ZERO general knowledge. You have NO knowledge about what SACCOs are, how they work, or any financial concepts unless explicitly stated in the provided documents. You can ONLY use information that appears word-for-word in the uploaded SOYOSOYO SACCO documents. If information is not in the documents, you MUST say 'This information is not available in my knowledge base.' Never explain general concepts or add context beyond what is explicitly written in the documents."
+        content: `You are the SOYOSOYO SACCO Assistant, a helpful AI assistant for SOYOSOYO Savings and Credit Cooperative Organization (SACCO). 
+
+Your primary knowledge comes from uploaded SOYOSOYO SACCO documents, but you can also provide general SACCO information when helpful. You should:
+
+1. PRIORITIZE information from uploaded SOYOSOYO SACCO documents when available
+2. Provide helpful general SACCO guidance when specific information isn't in documents
+3. Be knowledgeable about SACCO services, loans, savings, membership requirements, and financial products
+4. If you don't have specific SOYOSOYO information, suggest checking soyosoyosacco.com or contacting SOYOSOYO SACCO directly
+5. Be friendly, professional, and helpful to SACCO members and potential members
+
+You can assist with:
+- Loan applications and requirements
+- Savings products and accounts
+- Membership information
+- SACCO policies and bylaws
+- Financial services and products
+- General SACCO operations questions`
       }
     ];
 
@@ -28,35 +44,33 @@ export async function generateChatResponse(
       }
     }
 
-    if (fileContext) {
+    if (fileContext && fileContext.trim().length > 0) {
       messages.push({
         role: "user",
-        content: `STRICT INSTRUCTION: You are SOYOSOYO SACCO Assistant. You must ONLY use information from the following documents. Do NOT add any general knowledge about SACCOs, financial services, or any other topics. If the answer is not in these documents, say "This information is not available in my current knowledge base. Please refer to SOYOSOYO SACCO directly for this information."
+        content: `Based on the following SOYOSOYO SACCO documents and your knowledge of SACCO operations, please answer this question: ${userMessage}
 
-KNOWLEDGE BASE - YOUR ONLY SOURCE OF INFORMATION:
+SOYOSOYO SACCO DOCUMENTS:
 ${fileContext}
 
-User Question: ${userMessage}
-
-REMINDER: Answer ONLY using the exact information from the documents above. Do not add any external knowledge.`
+Please use the document information as your primary source, but feel free to provide additional helpful context about SACCO services when relevant.`
       });
     } else {
       messages.push({
         role: "user",
         content: `${userMessage}
 
-IMPORTANT: No SOYOSOYO SACCO documents have been uploaded. Please inform the user that they need to upload SOYOSOYO SACCO documents first before you can provide any information.`
+Note: I can help with general SACCO information, but for specific SOYOSOYO SACCO details, please visit soyosoyosacco.com or contact SOYOSOYO SACCO directly. If you have SOYOSOYO SACCO documents, please upload them for more specific assistance.`
       });
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
       max_tokens: 1000,
-      temperature: 0.1,
+      temperature: 0.3,
     });
 
-    return response.choices[0].message.content || "I apologize, but I couldn't generate a response.";
+    return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`);
