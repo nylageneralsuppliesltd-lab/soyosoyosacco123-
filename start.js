@@ -36,9 +36,21 @@ async function start() {
     console.log('🔗 Database connection:', process.env.DATABASE_URL ? 'Available' : 'Missing');
     
     // Run database migrations with proper environment setup
-    await execAsync('npx drizzle-kit push', {
-      env: { ...process.env, NODE_ENV: 'production' }
-    });
+    try {
+      await execAsync('npx drizzle-kit push --config=drizzle.config.ts --force', {
+        env: { ...process.env, NODE_ENV: 'production' }
+      });
+    } catch (pushError) {
+      console.log('⚠️ Push failed, trying migrate command...');
+      try {
+        await execAsync('npx drizzle-kit migrate --config=drizzle.config.ts', {
+          env: { ...process.env, NODE_ENV: 'production' }
+        });
+      } catch (migrateError) {
+        console.error('❌ Both push and migrate failed:', migrateError.message);
+        throw migrateError;
+      }
+    }
     console.log('✅ Database migrations completed successfully');
 
     console.log('🌐 Starting production server...');

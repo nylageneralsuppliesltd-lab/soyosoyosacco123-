@@ -28,10 +28,24 @@ try {
   console.log('🗄️ Running database migrations...');
   console.log('Database URL:', process.env.DATABASE_URL ? 'Found' : 'Missing');
   
-  execSync('npx drizzle-kit push', { 
-    stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: 'production' }
-  });
+  // Try push command first, fall back to migrate if it fails
+  try {
+    execSync('npx drizzle-kit push --config=drizzle.config.ts --force', { 
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: 'production' }
+    });
+  } catch (pushError) {
+    console.log('⚠️ Push failed, trying migrate command...');
+    try {
+      execSync('npx drizzle-kit migrate --config=drizzle.config.ts', { 
+        stdio: 'inherit',
+        env: { ...process.env, NODE_ENV: 'production' }
+      });
+    } catch (migrateError) {
+      console.error('❌ Both push and migrate failed:', migrateError.message);
+      throw migrateError;
+    }
+  }
 
   console.log('✅ Database migrations completed');
 

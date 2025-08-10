@@ -7,15 +7,27 @@ import { existsSync } from 'fs';
 console.log('🔧 Starting deployment build process...');
 
 try {
-  // Step 1: Install dependencies (without audit fix to avoid conflicts)
+  // Step 1: Install dependencies
   console.log('📦 Installing dependencies...');
   execSync('npm install --no-audit --no-fund', { stdio: 'inherit' });
 
-  // Step 2: Build frontend with Vite
+  // Step 2: Generate migration files (only if DATABASE_URL is available)
+  if (process.env.DATABASE_URL) {
+    console.log('🗄️ Generating database migration files...');
+    try {
+      execSync('npx drizzle-kit generate --config=drizzle.config.ts', { stdio: 'inherit' });
+    } catch (migrateError) {
+      console.log('⚠️ Migration generation skipped - will run at startup');
+    }
+  } else {
+    console.log('⚠️ DATABASE_URL not available during build - migrations will run at startup');
+  }
+
+  // Step 3: Build frontend with Vite
   console.log('🎨 Building frontend...');
   execSync('vite build', { stdio: 'inherit' });
 
-  // Step 3: Build backend with esbuild
+  // Step 4: Build backend with esbuild
   console.log('🏗️ Building backend...');
   execSync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist', { stdio: 'inherit' });
 
