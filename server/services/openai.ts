@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
@@ -19,7 +18,6 @@ export async function generateChatResponse(
       }
     ];
 
-    // Add conversation history (last 10 messages for context)
     const recentHistory = conversationHistory.slice(-10);
     for (const msg of recentHistory) {
       if (msg.role === "user" || msg.role === "assistant") {
@@ -30,7 +28,6 @@ export async function generateChatResponse(
       }
     }
 
-    // Add file context if available - this is your ONLY knowledge source
     if (fileContext) {
       messages.push({
         role: "user",
@@ -56,7 +53,7 @@ IMPORTANT: No SOYOSOYO SACCO documents have been uploaded. Please inform the use
       model: "gpt-4o",
       messages,
       max_tokens: 1000,
-      temperature: 0.1, // Lower temperature for more consistent, document-focused responses
+      temperature: 0.1,
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response.";
@@ -73,61 +70,18 @@ export async function analyzeFileContent(content: string, fileName: string, mime
       messages: [
         {
           role: "system",
-          content: "You are a file analysis assistant. Analyze the provided file content and extract key information, summarize the content, and provide insights."
+          content: "You are a file analysis assistant for SOYOSOYO SACCO. Summarize the provided file content using only the information in the content, without adding external knowledge."
         },
         {
           role: "user",
-          content: `Please analyze this file content:
-File name: ${fileName}
-File type: ${mimeType}
-Content: ${content}
-
-Provide a summary and key insights from this file.`
+          content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50-100 words) using only the information in the content.`
         }
       ],
-      max_tokens: 500,
+      max_tokens: 150,
     });
-
     return response.choices[0].message.content || "Could not analyze file content.";
   } catch (error) {
     console.error("File analysis error:", error);
     throw new Error(`Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`);
-  }
-}
-
-export async function analyzeImage(base64Image: string, promptOrFileName: string): Promise<string> {
-  try {
-    // If it's a specific OCR extraction request, use that prompt directly
-    const isOCRRequest = promptOrFileName.includes("Extract all text content");
-    const prompt = isOCRRequest 
-      ? promptOrFileName 
-      : `Analyze this image (${promptOrFileName}) and describe its contents, key elements, and any notable features.`;
-      
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64Image}`
-              }
-            }
-          ],
-        },
-      ],
-      max_tokens: isOCRRequest ? 2000 : 500,
-    });
-
-    return response.choices[0].message.content || "Could not analyze image.";
-  } catch (error) {
-    console.error("Image analysis error:", error);
-    throw new Error(`Failed to analyze image: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
