@@ -92,3 +92,31 @@ Preferred communication style: Simple, everyday language.
 - **zod**: TypeScript-first schema validation library
 - **connect-pg-simple**: PostgreSQL session store for Express sessions
 - **date-fns**: Modern JavaScript date utility library
+
+## Deployment Configuration
+
+### Current Status
+The deployment has been fixed to resolve the following issues:
+- Build script no longer tries to run database migrations during build time
+- Custom build and start scripts separate build and runtime concerns
+- Production database migrations run at startup with proper environment variables
+
+### Deployment Scripts
+- **build.js**: Custom build script that compiles frontend and backend without requiring DATABASE_URL
+- **start.js**: Production start script that runs database migrations before starting the server
+- **DEPLOYMENT_FIX.md**: Complete documentation of the deployment fixes applied
+
+### Deployment Commands
+- **Build Command**: `node build.js`
+- **Start Command**: `node start.js`
+
+### Required Environment Variables for Production
+- `DATABASE_URL`: PostgreSQL connection string
+- `OPENAI_API_KEY`: OpenAI API key for chat functionality
+- `NODE_ENV`: Set to "production"
+
+### Recent Changes (January 2025)
+- Fixed deployment build failures by removing drizzle-kit push from build script
+- Added custom build.js script for clean compilation without database dependencies
+- Added custom start.js script for proper production startup with database migrations
+- Created comprehensive deployment documentation in DEPLOYMENT_FIX.md
