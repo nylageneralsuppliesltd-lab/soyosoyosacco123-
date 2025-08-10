@@ -40,16 +40,24 @@ NODE_ENV=production
 
 ### Step 3: How to Update Configuration in Replit
 
-1. **Option A - Through Replit Deployments Tab:**
-   - Go to your project's "Deployments" tab
-   - Click on "Configure" or "Settings"
-   - Update the Build Command to: `node build.js`
-   - Update the Run Command to: `node start.js`
+**IMPORTANT:** You must manually update the deployment configuration since the .replit file cannot be automatically modified.
 
-2. **Option B - Through .replit File (If Accessible):**
+1. **Through Replit Deployments Interface:**
+   - Go to your project's "Deployments" tab in Replit
+   - Click on "Configure" or "Edit deployment settings"
+   - In the deployment configuration:
+     - **Build Command**: Change from `npm run build` to `node build.js`
+     - **Run Command**: Change from `npm run start` to `node start.js`
+   - Save the configuration
+
+2. **Alternative - Manual .replit Edit:**
+   If you have access to edit the .replit file directly, change lines 10-11 from:
    ```toml
-   [deployment]
-   deploymentTarget = "autoscale"
+   run = ["npm", "run", "start"]
+   build = ["npm", "run", "build"]
+   ```
+   To:
+   ```toml
    run = ["node", "start.js"]
    build = ["node", "build.js"]
    ```
