@@ -5,9 +5,11 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "npm install && npm audit fix && npx drizzle-kit push && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
+    "build": "npm ci && npm audit fix && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "start": "NODE_ENV=production npm run migrate && node dist/index.js",
+    "migrate": "tsx server/migrate.ts",
     "check": "tsc",
+    "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
@@ -64,7 +66,7 @@
     "passport-local": "^1.0.0",
     "pdf2pic": "^2.2.1",
     "pdfjs-dist": "^5.4.54",
-    "tesseract.js": "^5.0.0",
+    "postgres": "^3.4.4", // Added for PostgreSQL (Render)
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
