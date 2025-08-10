@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 
-// Custom start script for production deployment
-// This script runs database migrations before starting the server
-
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 
