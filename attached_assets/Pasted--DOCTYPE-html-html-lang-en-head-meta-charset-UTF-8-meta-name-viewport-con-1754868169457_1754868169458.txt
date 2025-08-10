@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOYOSOYO SACCO Assistant</title>
+    <style>
+        /* Same styles as embed-chat-updated.html but condensed */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
+        .chat-widget { position: fixed; top: 50%; right: 16px; transform: translateY(-50%); z-index: 1000; }
+        .chat-button { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); border: 3px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .chat-button img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .chat-window { position: absolute; bottom: 80px; right: 0; width: 380px; height: 520px; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; display: none; flex-direction: column; overflow: hidden; }
+        .chat-window.open { display: flex; }
+        .chat-header { background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; }
+        .chat-input { padding: 20px; border-top: 1px solid #e5e7eb; background: white; }
+        .chat-input-container { display: flex; gap: 12px; align-items: flex-end; }
+        .chat-input-field { flex: 1; border: 1px solid #d1d5db; border-radius: 20px; padding: 12px 16px; font-size: 14px; resize: none; min-height: 44px; max-height: 120px; outline: none; transition: border-color 0.2s; }
+        .send-button { background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+        .connection-status { position: absolute; bottom: -40px; right: 0; background: rgba(0, 0, 0, 0.8); color: white; padding: 6px 10px; border-radius: 4px; font-size: 12px; display: none; max-width: 200px; }
+        .connection-status.show { display: block; }
+        .connection-status.error { background: #dc2626; }
+        .connection-status.success { background: #16a34a; }
+        .connection-status.warning { background: #f59e0b; }
+        .message { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
+        .message.user { flex-direction: row-reverse; }
+        .message-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+        .message.user .message-avatar { background: #3b82f6; color: white; }
+        .message.assistant .message-avatar { background: #22c55e; color: white; }
+        .message-bubble { max-width: 280px; padding: 12px 16px; border-radius: 16px; line-height: 1.4; word-wrap: break-word; }
+        .message.user .message-bubble { background: #3b82f6; color: white; border-bottom-right-radius: 4px; }
+        .message.assistant .message-bubble { background: white; color: #374151; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+        .welcome-message { text-align: center; padding: 40px 20px; color: #6b7280; }
+        .close-button { background: none; border: none; color: white; cursor: pointer; padding: 4px; border-radius: 4px; transition: background-color 0.2s; }
+        .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+        .typing-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: bounce 1.4s ease-in-out infinite both; }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.1s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="chat-widget">
+        <div style="position: relative;">
+            <button class="chat-button" id="chatButton">
+                <img src="https://via.placeholder.com/64x64/7dd3c0/ffffff?text=SACCO" alt="SOYOSOYO SACCO Assistant">
+            </button>
+            <div class="connection-status" id="connectionStatus">
+                Detecting API...
+            </div>
+        </div>
+        
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.2); font-weight: bold;">S</div>
+                    <div>
+                        <h3 style="font-weight: 600; font-size: 14px; margin: 0;">SOYOSOYO SACCO</h3>
+                        <p style="font-size: 12px; opacity: 0.9; margin: 0;">Assistant</p>
+                    </div>
+                </div>
+                <button class="close-button" id="closeButton">✕</button>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h3>Welcome to SOYOSOYO SACCO</h3>
+                    <p>I'm here to help with questions about SACCO services and policies.</p>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <div class="chat-input-container">
+                    <textarea class="chat-input-field" id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <button class="send-button" id="sendButton">
+                        <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                            <path d="M28 16L4 28V20L20 16L4 12V4L28 16Z" fill="white"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================================================
+        // CONFIGURATION: UPDATE THESE URLs AFTER DEPLOYMENT
+        // =============================================================================
+        const POSSIBLE_API_URLS = [
+            'https://workspace.nylageneralsupp.repl.co',           // Original format
+            'https://workspace--nylageneralsupp.repl.co',          // Alternative format  
+            'https://workspace-nylageneralsupp.replit.app',        // New format
+            'https://soyosoyo-chatbot--nylageneralsupp.repl.co',   // If renamed
+            'http://localhost:5000'  // Development fallback (remove for production)
+        ];
+
+        class SoyoSaccoChatWidget {
+            constructor() {
+                this.isOpen = false;
+                this.conversationId = null;
+                this.isLoading = false;
+                this.apiBaseUrl = null;
+                
+                this.chatButton = document.getElementById('chatButton');
+                this.chatWindow = document.getElementById('chatWindow');
+                this.closeButton = document.getElementById('closeButton');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.chatMessages = document.getElementById('chatMessages');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                
+                this.setupEventListeners();
+                this.detectAndConnectAPI();
+            }
+            
+            setupEventListeners() {
+                this.chatButton.addEventListener('click', () => this.toggleChat());
+                this.closeButton.addEventListener('click', () => this.closeChat());
+                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+            }
+            
+            async detectAndConnectAPI() {
+                this.showConnectionStatus('Detecting API endpoint...', 'warning');
+                
+                for (const url of POSSIBLE_API_URLS) {
+                    try {
+                        this.showConnectionStatus(`Testing ${url.replace('https://', '')}...`, 'warning');
+                        
+                        const response = await fetch(`${url}/api/chat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: 'test', conversationId: null }),
+                            signal: AbortSignal.timeout(5000) // 5 second timeout
+                        });
+                        
+                        if (response.ok) {
+                            this.apiBaseUrl = url;
+                            this.showConnectionStatus(`Connected to ${url.replace('https://', '')}`, 'success');
+                            setTimeout(() => this.hideConnectionStatus(), 3000);
+                            return;
+                        }
+                    } catch (error) {
+                        console.log(`Failed to connect to ${url}:`, error.message);
+                        continue;
+                    }
+                }
+                
+                // If no API found
+                this.showConnectionStatus('❌ No API endpoint found. Deploy your app first!', 'error');
+                this.addMessage("I'm unable to connect to the server. Please make sure the application is deployed and try again.", 'assistant');
+            }
+            
+            showConnectionStatus(message, type = 'info') {
+                this.connectionStatus.textContent = message;
+                this.connectionStatus.className = `connection-status show ${type}`;
+            }
+            
+            hideConnectionStatus() {
+                this.connectionStatus.classList.remove('show');
+            }
+            
+            toggleChat() {
+                if (this.isOpen) {
+                    this.closeChat();
+                } else {
+                    this.openChat();
+                }
+            }
+            
+            openChat() {
+                this.isOpen = true;
+                this.chatWindow.classList.add('open');
+                this.messageInput.focus();
+                
+                // Show connection status if not connected
+                if (!this.apiBaseUrl) {
+                    this.detectAndConnectAPI();
+                }
+            }
+            
+            closeChat() {
+                this.isOpen = false;
+                this.chatWindow.classList.remove('open');
+            }
+            
+            async sendMessage() {
+                if (!this.apiBaseUrl) {
+                    this.addMessage("Please wait while I connect to the server...", 'assistant');
+                    await this.detectAndConnectAPI();
+                    if (!this.apiBaseUrl) return;
+                }
+                
+                const message = this.messageInput.value.trim();
+                if (!message || this.isLoading) return;
+                
+                this.messageInput.value = '';
+                this.isLoading = true;
+                this.sendButton.disabled = true;
+                
+                this.addMessage(message, 'user');
+                this.showTypingIndicator();
+                
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message, conversationId: this.conversationId }),
+                        signal: AbortSignal.timeout(30000) // 30 second timeout
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    this.hideTypingIndicator();
+                    
+                    if (data.response) {
+                        this.addMessage(data.response, 'assistant');
+                        this.conversationId = data.conversationId;
+                    } else {
+                        throw new Error('Invalid response format');
+                    }
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    this.hideTypingIndicator();
+                    this.addMessage("Sorry, I'm having connection issues. Please try again or check if the server is running.", 'assistant');
+                } finally {
+                    this.isLoading = false;
+                    this.sendButton.disabled = false;
+                }
+            }
+            
+            addMessage(content, role) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'message-avatar';
+                avatarDiv.textContent = role === 'assistant' ? 'S' : 'U';
+                
+                const bubbleDiv = document.createElement('div');
+                bubbleDiv.className = 'message-bubble';
+                bubbleDiv.textContent = content;
+                
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(bubbleDiv);
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+            
+            showTypingIndicator() {
+                const typingDiv = document.createElement('div');
+                typingDiv.id = 'typingIndicator';
+                typingDiv.className = 'message assistant';
+                typingDiv.innerHTML = `
+                    <div class="message-avatar">S</div>
+                    <div class="message-bubble">
+                        <div class="typing-indicator">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                `;
+                this.chatMessages.appendChild(typingDiv);
+                this.scrollToBottom();
+            }
+            
+            hideTypingIndicator() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) typingIndicator.remove();
+            }
+            
+            scrollToBottom() {
+                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new SoyoSaccoChatWidget();
+        });
+    </script>
+</body>
+</html>
