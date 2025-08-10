@@ -17,14 +17,15 @@
         
         .chat-widget {
             position: fixed;
-            bottom: 24px;
-            right: 24px;
+            top: 50%;
+            right: 16px;
+            transform: translateY(-50%);
             z-index: 1000;
         }
         
         .chat-button {
-            width: 80px;
-            height: 80px;
+            width: 64px;
+            height: 64px;
             border-radius: 50%;
             background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
             border: 3px solid white;
@@ -33,8 +34,67 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: pulse 2s infinite;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chat-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+        
+        .chat-button-container {
+            position: relative;
+        }
+        
+        .hover-tooltip {
+            position: absolute;
+            right: 80px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        
+        .hover-tooltip::after {
+            content: '';
+            position: absolute;
+            right: -4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 4px solid rgba(0, 0, 0, 0.8);
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+        
+        .chat-button-container:hover .hover-tooltip {
+            opacity: 1;
+        }
+        
+        .logo-badge {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
         .chat-button:hover {
@@ -214,9 +274,9 @@
         .typing-dot:nth-child(2) { animation-delay: 0.1s; }
         .typing-dot:nth-child(3) { animation-delay: 0.2s; }
         
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+        .chat-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
         }
         
         @keyframes bounce {
@@ -233,20 +293,29 @@
 </head>
 <body>
     <div class="chat-widget" id="chatWidget">
-        <button class="chat-button" id="chatButton">
-            <svg width="50" height="50" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="100" cy="100" r="95" fill="white"/>
-                <circle cx="100" cy="100" r="75" fill="#1e7b85"/>
-                <path d="M100 40 L100 40 C120 45, 130 55, 130 75 L130 125 C130 145, 120 155, 100 160 C80 155, 70 145, 70 125 L70 75 C70 55, 80 45, 100 40 Z" fill="white"/>
-                <path d="M100 50 L100 50 C115 54, 122 62, 122 78 L122 120 C122 136, 115 144, 100 148 C85 144, 78 136, 78 120 L78 78 C78 62, 85 54, 100 50 Z" fill="none" stroke="#7dd3c0" stroke-width="2"/>
-                <text x="100" y="85" text-anchor="middle" fill="#1e7b85" font-size="16" font-weight="bold" font-family="Arial, sans-serif">SACCO</text>
-                <g transform="translate(130, 70)">
-                    <circle cx="0" cy="0" r="12" fill="#1e7b85"/>
-                    <path d="M-6 -2 L6 -2 L6 2 L-6 2 Z" fill="white"/>
-                    <path d="M-2 -6 L2 -6 L2 6 L-2 6 Z" fill="white"/>
-                </g>
-            </svg>
-        </button>
+        <div class="chat-button-container">
+            <button class="chat-button" id="chatButton">
+                <img src="attached_assets/Screenshot 2025-06-02 085323_1754841331497.png" alt="SOYOSOYO SACCO Assistant">
+            </button>
+            
+            <div class="hover-tooltip">
+                Chat with SOYOSOYO SACCO Assistant
+            </div>
+            
+            <div class="logo-badge">
+                <svg width="16" height="16" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="100" cy="100" r="95" fill="#7dd3c0"/>
+                    <circle cx="100" cy="100" r="75" fill="#1e7b85"/>
+                    <path d="M100 40 L100 40 C120 45, 130 55, 130 75 L130 125 C130 145, 120 155, 100 160 C80 155, 70 145, 70 125 L70 75 C70 55, 80 45, 100 40 Z" fill="white"/>
+                    <text x="100" y="85" text-anchor="middle" fill="#1e7b85" font-size="16" font-weight="bold" font-family="Arial, sans-serif">SACCO</text>
+                    <g transform="translate(130, 70)">
+                        <circle cx="0" cy="0" r="12" fill="#1e7b85"/>
+                        <path d="M-6 -2 L6 -2 L6 2 L-6 2 Z" fill="white"/>
+                        <path d="M-2 -6 L2 -6 L2 6 L-2 6 Z" fill="white"/>
+                    </g>
+                </svg>
+            </div>
+        </div>
         
         <div class="chat-window" id="chatWindow">
             <div class="chat-header">
