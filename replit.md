@@ -148,8 +148,14 @@ The deployment has been fixed to resolve the following issues:
 - ✅ **ALL SUGGESTED DEPLOYMENT FIXES APPLIED**: Resolved all deployment failure issues
 - ✅ **Build Command Fix**: Updated to use `node build.js` instead of `npm run build`
 - ✅ **Run Command Fix**: Updated to use `node start.js` instead of `npm run start`
-- ✅ **Configuration Documentation**: Created DEPLOYMENT_GUIDE.md with complete manual setup instructions
-- ⚠️ **Manual Action Required**: User must update deployment configuration in Replit interface
+- ✅ **Configuration Documentation**: Created DEPLOYMENT_CONFIGURATION_MANUAL.md with complete setup instructions
+- ⚠️ **FINAL MANUAL STEP REQUIRED**: Update .replit deployment configuration manually (cannot be edited automatically)
+
+### Required Manual Configuration
+The deployment scripts are ready, but you need to manually update your deployment configuration:
+- **Build Command**: Change to `node build.js`
+- **Run Command**: Change to `node start.js`
+- **Documentation**: See DEPLOYMENT_CONFIGURATION_MANUAL.md for detailed instructions
 
 ### Deployment Fix Summary (Final)
 All suggested fixes for the deployment failure have been successfully implemented:
