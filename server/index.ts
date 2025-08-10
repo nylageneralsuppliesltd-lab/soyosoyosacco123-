@@ -1,71 +1,65 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { storage } from "./storage";
+import { processUploadedFile } from "./services/fileProcessor";
+import fs from "fs/promises";
+import path from "path";
+import { insertFileSchema } from "./db/schema";
+import { db, uploadedFiles } from "./storage";
+import { eq } from "drizzle-orm";
+
+async function preloadAssets() {
+  const assetsDir = path.join(__dirname, "..", "attached_assets");
+  const assetFiles = ["SOYOSOYO BY LAWS -2025_1754774335855.pdf", "loan policy_1754774281152.pdf"];
+  console.log(`DEBUG: Preloading assets from ${assetsDir}`);
+
+  for (const fileName of assetFiles) {
+    const filePath = path.join(assetsDir, fileName);
+    try {
+      await fs.access(filePath);
+      const fileBuffer = await fs.readFile(filePath);
+      const mimeType = "application/pdf";
+      const size = fileBuffer.length;
+      const { extractedText, analysis } = await processUploadedFile(fileBuffer, fileName, mimeType);
+
+      // Check if file already exists in database
+      const [existingFile] = await db
+        .select({ id: uploadedFiles.id })
+        .from(uploadedFiles)
+        .where(eq(uploadedFiles.filename, fileName))
+        .limit(1);
+
+      if (!existingFile) {
+        const fileData = insertFileSchema.parse({
+          conversationId: "initial-assets",
+          filename: fileName,
+          originalName: fileName,
+          mimeType,
+          size,
+          extractedText,
+          metadata: { analysis },
+        });
+
+        await storage.createFile({
+          ...fileData,
+          content: fileBuffer.toString("base64"),
+        });
+        console.log(`DEBUG: Preloaded ${fileName} into database`);
+      } else {
+        console.log(`DEBUG: ${fileName} already exists in database, skipping preload`);
+      }
+    } catch (error) {
+      console.error(`Error preloading ${fileName}:`, error);
+    }
+  }
+}
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.static("client/dist"));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
+registerRoutes(app).then(async (server) => {
+  await preloadAssets();
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 });
-
-(async () => {
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
