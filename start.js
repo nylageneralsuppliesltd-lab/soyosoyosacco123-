@@ -68,10 +68,14 @@ async function start() {
     console.log('✅ Database migrations completed successfully');
 
     console.log('🌐 Starting production server...');
+    console.log('🔍 Environment check:');
+    console.log('   NODE_ENV:', process.env.NODE_ENV);
+    console.log('   PORT:', process.env.PORT);
+    console.log('   DATABASE_URL:', process.env.DATABASE_URL ? 'Available' : 'Missing');
     
     // Start the production server with proper process handling
     const serverProcess = exec('node dist/index.js', {
-      env: { ...process.env, NODE_ENV: 'production' }
+      env: { ...process.env, NODE_ENV: 'production', PORT: process.env.PORT || '5000' }
     });
     
     serverProcess.stdout.on('data', (data) => {
