@@ -14,7 +14,7 @@ export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
   content: text("content").notNull(),
-  role: text("role").notNull(), // 'user' | 'assistant' | 'system'
+  role: text("role").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   metadata: jsonb("metadata"),
 });
@@ -28,7 +28,7 @@ export const uploadedFiles = pgTable("uploaded_files", {
   size: integer("size").notNull(),
   extractedText: text("extracted_text"),
   metadata: jsonb("metadata"),
-  content: text("content"), // Store file content as base64
+  content: text("content"),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
 });
@@ -38,7 +38,7 @@ export const apiLogs = pgTable("api_logs", {
   endpoint: text("endpoint").notNull(),
   method: text("method").notNull(),
   statusCode: integer("status_code").notNull(),
-  responseTime: integer("response_time").notNull(), // in milliseconds
+  responseTime: integer("response_time").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   errorMessage: text("error_message"),
 });
@@ -79,7 +79,6 @@ export type InsertFile = z.infer<typeof insertFileSchema>;
 export type ApiLog = typeof apiLogs.$inferSelect;
 export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
 
-// Chat request/response schemas
 export const chatRequestSchema = z.object({
   message: z.string().min(1),
   conversationId: z.string().optional(),
