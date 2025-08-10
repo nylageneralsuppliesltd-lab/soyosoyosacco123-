@@ -12,6 +12,26 @@ const upload = multer({ storage: multer.memoryStorage() });
 export async function registerRoutes(app: express.Express) {
   const router = express.Router();
 
+  // Health check endpoint for deployment
+  router.get("/health", (req, res) => {
+    res.status(200).json({ 
+      status: "healthy", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || "development"
+    });
+  });
+
+  // Simple health check at root for basic deployment checks
+  router.get("/", (req, res, next) => {
+    // If this is an API health check (detected by Accept header), respond with JSON
+    if (req.headers.accept && req.headers.accept.includes('application/json')) {
+      return res.status(200).json({ status: "ok" });
+    }
+    // Otherwise, let it fall through to serve the frontend
+    next();
+  });
+
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {

@@ -90,15 +90,59 @@ app.use(express.json());
 const server = createServer(app);
 
 registerRoutes(app).then(async () => {
-  // Setup Vite development server
-  await setupVite(app, server);
-  
-  // Preload assets after Vite is set up
-  await preloadAssets();
+  // Setup Vite development server or static file serving based on environment
+  if (process.env.NODE_ENV === "production") {
+    // Serve static files for production
+    const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
+    const fs = await import("fs");
+    
+    if (!fs.existsSync(distPath)) {
+      console.error(`❌ Build directory not found: ${distPath}`);
+      console.error("Please run the build command first: node build.js");
+      process.exit(1);
+    }
+    
+    // Serve static files with proper headers
+    app.use(express.static(distPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        }
+      }
+    }));
+    
+    // Fallback to index.html for SPA routing (but not for API routes)
+    app.use("*", (req, res, next) => {
+      // Don't serve index.html for API routes
+      if (req.originalUrl.startsWith('/api/') || req.originalUrl.startsWith('/health')) {
+        return next();
+      }
+      res.sendFile(path.resolve(distPath, "index.html"));
+    });
+    
+    console.log(`📁 Serving static files from: ${distPath}`);
+  } else {
+    await setupVite(app, server);
+  }
   
   const PORT = Number(process.env.PORT) || 5000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Frontend available at http://localhost:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+    
+    // Preload assets after server is started to avoid blocking health checks
+    if (process.env.NODE_ENV !== "production") {
+      // Only preload in development to avoid slow startup in production
+      preloadAssets().catch(console.error);
+    } else {
+      // In production, preload assets in background after a short delay
+      setTimeout(() => {
+        console.log("🔄 Starting background asset preloading...");
+        preloadAssets().catch(console.error);
+      }, 5000);
+    }
   });
 });

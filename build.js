@@ -38,6 +38,20 @@ async function build() {
       throw new Error('Frontend build failed - dist/public not found');
     }
     
+    // Verify key frontend files exist
+    if (!existsSync('dist/public/index.html')) {
+      throw new Error('Frontend build incomplete - index.html not found in dist/public');
+    }
+    
+    // Check for main.tsx or compiled JS files
+    const { readdirSync } = await import('fs');
+    const publicFiles = readdirSync('dist/public', { recursive: true });
+    const hasJsFiles = publicFiles.some(file => file.toString().endsWith('.js'));
+    if (!hasJsFiles) {
+      console.warn('⚠️ Warning: No JavaScript files found in build output');
+      console.warn('📂 Build contents:', publicFiles);
+    }
+    
     console.log('✨ Build completed successfully!');
     console.log('📝 Note: Database operations will run at startup when DATABASE_URL is available');
     console.log('🔒 Build process completed without requiring DATABASE_URL or audit operations');

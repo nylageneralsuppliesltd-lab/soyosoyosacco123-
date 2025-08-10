@@ -15,7 +15,7 @@ async function start() {
   
   try {
     // Verify build outputs exist first
-    const { existsSync } = await import('fs');
+    const { existsSync, readdirSync } = await import('fs');
     if (!existsSync('dist/index.js')) {
       console.error('❌ Built server not found. Run build command first.');
       process.exit(1);
@@ -23,6 +23,20 @@ async function start() {
     if (!existsSync('dist/public')) {
       console.error('❌ Built client not found. Run build command first.');
       process.exit(1);
+    }
+    if (!existsSync('dist/public/index.html')) {
+      console.error('❌ Frontend index.html not found. Build may have failed.');
+      process.exit(1);
+    }
+    
+    // Log build contents for debugging
+    console.log('📂 Frontend build contents:');
+    try {
+      const files = readdirSync('dist/public', { recursive: true });
+      files.slice(0, 10).forEach(file => console.log(`   ${file}`));
+      if (files.length > 10) console.log(`   ... and ${files.length - 10} more files`);
+    } catch (err) {
+      console.warn('Could not list build contents:', err.message);
     }
     
     // Check for required environment variables
