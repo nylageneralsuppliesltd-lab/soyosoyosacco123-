@@ -23,11 +23,11 @@
         }
         
         .chat-button {
-            width: 64px;
-            height: 64px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            background: #22c55e;
-            border: none;
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            border: 3px solid white;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             cursor: pointer;
             display: flex;
@@ -44,19 +44,19 @@
         }
         
         .chat-window {
-            width: 350px;
-            height: 450px;
+            width: 400px;
+            height: 550px;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-            border: 1px solid rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(125, 211, 192, 0.3);
             display: none;
             flex-direction: column;
             overflow: hidden;
         }
         
         .chat-header {
-            background: #22c55e;
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
             color: white;
             padding: 16px;
             display: flex;
@@ -87,6 +87,7 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
+            height: 400px;
         }
         
         .message {
@@ -233,13 +234,17 @@
 <body>
     <div class="chat-widget" id="chatWidget">
         <button class="chat-button" id="chatButton">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="32" height="32" rx="16" fill="white"/>
-                <path d="M8 12h16v8H8z" fill="#22c55e" fill-opacity="0.9"/>
-                <circle cx="12" cy="16" r="2" fill="white"/>
-                <circle cx="20" cy="16" r="2" fill="white"/>
-                <path d="M10 20h12v2H10z" fill="#22c55e" fill-opacity="0.8"/>
-                <text x="16" y="11" text-anchor="middle" fill="#22c55e" font-size="8" font-weight="bold">SACCO</text>
+            <svg width="50" height="50" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="95" fill="white"/>
+                <circle cx="100" cy="100" r="75" fill="#1e7b85"/>
+                <path d="M100 40 L100 40 C120 45, 130 55, 130 75 L130 125 C130 145, 120 155, 100 160 C80 155, 70 145, 70 125 L70 75 C70 55, 80 45, 100 40 Z" fill="white"/>
+                <path d="M100 50 L100 50 C115 54, 122 62, 122 78 L122 120 C122 136, 115 144, 100 148 C85 144, 78 136, 78 120 L78 78 C78 62, 85 54, 100 50 Z" fill="none" stroke="#7dd3c0" stroke-width="2"/>
+                <text x="100" y="85" text-anchor="middle" fill="#1e7b85" font-size="16" font-weight="bold" font-family="Arial, sans-serif">SACCO</text>
+                <g transform="translate(130, 70)">
+                    <circle cx="0" cy="0" r="12" fill="#1e7b85"/>
+                    <path d="M-6 -2 L6 -2 L6 2 L-6 2 Z" fill="white"/>
+                    <path d="M-2 -6 L2 -6 L2 6 L-2 6 Z" fill="white"/>
+                </g>
             </svg>
         </button>
         
@@ -247,13 +252,16 @@
             <div class="chat-header">
                 <div class="chat-header-info">
                     <div class="chat-avatar">
-                        <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="32" height="32" rx="16" fill="#22c55e"/>
-                            <path d="M8 12h16v8H8z" fill="white" fill-opacity="0.9"/>
-                            <circle cx="12" cy="16" r="2" fill="#22c55e"/>
-                            <circle cx="20" cy="16" r="2" fill="#22c55e"/>
-                            <path d="M10 20h12v2H10z" fill="white" fill-opacity="0.8"/>
-                            <text x="16" y="11" text-anchor="middle" fill="white" font-size="8" font-weight="bold">SACCO</text>
+                        <svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="100" cy="100" r="95" fill="#7dd3c0"/>
+                            <circle cx="100" cy="100" r="75" fill="#1e7b85"/>
+                            <path d="M100 40 L100 40 C120 45, 130 55, 130 75 L130 125 C130 145, 120 155, 100 160 C80 155, 70 145, 70 125 L70 75 C70 55, 80 45, 100 40 Z" fill="white"/>
+                            <text x="100" y="85" text-anchor="middle" fill="#1e7b85" font-size="16" font-weight="bold" font-family="Arial, sans-serif">SACCO</text>
+                            <g transform="translate(130, 70)">
+                                <circle cx="0" cy="0" r="12" fill="#1e7b85"/>
+                                <path d="M-6 -2 L6 -2 L6 2 L-6 2 Z" fill="white"/>
+                                <path d="M-2 -6 L2 -6 L2 6 L-2 6 Z" fill="white"/>
+                            </g>
                         </svg>
                     </div>
                     <div>

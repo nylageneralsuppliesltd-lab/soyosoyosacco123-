@@ -94,15 +94,25 @@ export function ChatWidget() {
     }
   };
 
-  // SOYOSOYO SACCO Logo SVG
+  // SOYOSOYO SACCO Logo SVG (Real Logo)
   const SaccoLogo = () => (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="16" fill="#22c55e"/>
-      <path d="M8 12h16v8H8z" fill="white" fillOpacity="0.9"/>
-      <circle cx="12" cy="16" r="2" fill="#22c55e"/>
-      <circle cx="20" cy="16" r="2" fill="#22c55e"/>
-      <path d="M10 20h12v2H10z" fill="white" fillOpacity="0.8"/>
-      <text x="16" y="11" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">SACCO</text>
+    <svg width="40" height="40" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="95" fill="#7dd3c0" stroke="white" strokeWidth="2"/>
+      <circle cx="100" cy="100" r="75" fill="#1e7b85" stroke="white" strokeWidth="3"/>
+      <path d="M100 40 L100 40 C120 45, 130 55, 130 75 L130 125 C130 145, 120 155, 100 160 C80 155, 70 145, 70 125 L70 75 C70 55, 80 45, 100 40 Z" fill="white"/>
+      <path d="M100 50 L100 50 C115 54, 122 62, 122 78 L122 120 C122 136, 115 144, 100 148 C85 144, 78 136, 78 120 L78 78 C78 62, 85 54, 100 50 Z" fill="none" stroke="#7dd3c0" strokeWidth="2"/>
+      <text x="100" y="85" textAnchor="middle" fill="#1e7b85" fontSize="16" fontWeight="bold" fontFamily="Arial, sans-serif">SACCO</text>
+      <g transform="translate(130, 70)">
+        <circle cx="0" cy="0" r="12" fill="#1e7b85"/>
+        <path d="M-6 -2 L6 -2 L6 2 L-6 2 Z" fill="white"/>
+        <path d="M-2 -6 L2 -6 L2 6 L-2 6 Z" fill="white"/>
+      </g>
+      <path id="topCurve" d="M 30 100 A 70 70 0 0 1 170 100" fill="none"/>
+      <text fontSize="14" fontWeight="bold" fill="#1e7b85" fontFamily="Arial, sans-serif">
+        <textPath href="#topCurve" startOffset="50%" textAnchor="middle">SOYOSOYO MEDICARE</textPath>
+      </text>
+      <text x="100" y="175" textAnchor="middle" fill="#1e7b85" fontSize="12" fontWeight="bold" fontFamily="Arial, sans-serif">CO-OPERATIVE SAVINGS &amp;</text>
+      <text x="100" y="190" textAnchor="middle" fill="#7dd3c0" fontSize="12" fontWeight="bold" fontFamily="Arial, sans-serif">CREDIT SOCIETY</text>
     </svg>
   );
 
@@ -112,12 +122,12 @@ export function ChatWidget() {
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           onClick={() => setIsOpen(true)}
-          className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse"
+          className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse border-2 border-white"
           size="lg"
         >
           <div className="flex flex-col items-center">
             <SaccoLogo />
-            <MessageCircle className="w-6 h-6 text-white mt-1" />
+            <MessageCircle className="w-5 h-5 text-white mt-1" />
           </div>
         </Button>
       </div>
@@ -126,7 +136,7 @@ export function ChatWidget() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <Card className={`w-80 h-96 shadow-2xl border-green-500/20 transition-all duration-300 ${isMinimized ? "h-16" : "h-96"}`}>
+      <Card className={`w-96 h-[500px] shadow-2xl border-green-500/20 transition-all duration-300 ${isMinimized ? "h-16" : "h-[500px]"}`}>
         <CardHeader className="flex flex-row items-center justify-between p-4 bg-green-500 text-white rounded-t-lg">
           <div className="flex items-center gap-3">
             <Avatar className="w-8 h-8">
@@ -163,7 +173,7 @@ export function ChatWidget() {
         {!isMinimized && (
           <>
             <CardContent className="p-0 flex-1">
-              <ScrollArea className="h-64 p-4">
+              <ScrollArea className="h-80 p-4">
                 <div className="space-y-4">
                   {messages.map((message) => (
                     <div
