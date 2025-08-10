@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
-import { storage } from "./storage";
-import { generateChatResponse } from "./openai";
-import { processUploadedFile, cleanupFile, readAssetsFiles } from "./fileProcessor";
+import { storage } from "./storage"; // In server/
+import { generateChatResponse } from "./services/openai"; // In server/services/
+import { processUploadedFile, cleanupFile, readAssetsFiles } from "./services/fileProcessor"; // In server/services/
 import { chatRequestSchema, insertMessageSchema, insertFileSchema, insertApiLogSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import fs from "fs/promises";
@@ -37,11 +37,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "SOYOSOYO BY LAWS -2025_1754774335855.pdf",
     "loan policy_1754774281152.pdf"
   ];
+  console.log(`DEBUG: Initializing assets: ${assetFiles.join(", ")}`);
   const assetsContext = await readAssetsFiles(assetFiles);
 
   // Store attached_assets files in SQLite
   for (const file of assetFiles) {
-    const filePath = path.join(__dirname, "..", "attached_assets", file);
+    const filePath = path.join(__dirname, "..", "attached_assets", file); // attached_assets in project root
+    console.log(`DEBUG: Storing file ${filePath}`);
     try {
       const stats = await fs.stat(filePath);
       const mimeType = "application/pdf";
@@ -56,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: { path: filePath },
         path: filePath
       });
-      console.log(`Stored ${file} in SQLite`);
+      console.log(`DEBUG: Stored ${file} in SQLite`);
     } catch (error) {
       console.error(`Failed to store ${file} in SQLite:`, error);
     }
@@ -149,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: { path: filePath },
             path: filePath
           });
-          // await cleanupFile(file.path); // Keep files
+          console.log(`DEBUG: Stored uploaded file ${file.originalname} in SQLite`);
           results.push({
             fileId: fileRecord.id,
             fileName: fileRecord.originalName,
@@ -185,6 +187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const file = await storage.getFile(req.params.id);
       if (!file || !file.path) return res.status(404).json({ error: "File not found" });
+      console.log(`DEBUG: Serving file ${file.path}`);
       res.sendFile(file.path, { root: "/" });
     } catch (error) {
       console.error("Error serving file:", error);
