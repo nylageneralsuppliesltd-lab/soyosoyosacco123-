@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SOYOSOYO SACCO Assistant</title>
     <style>
-        /* Same styles as embed-chat-auto-detect.html but improved */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
         .chat-widget { position: fixed; top: 50%; right: 16px; transform: translateY(-50%); z-index: 1000; }
         .chat-button { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); border: 3px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; position: relative; overflow: hidden; }
         .chat-button img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .chat-button:hover { transform: scale(1.05); box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
         .chat-window { position: absolute; bottom: 80px; right: 0; width: 380px; height: 520px; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; display: none; flex-direction: column; overflow: hidden; }
         .chat-window.open { display: flex; }
         .chat-header { background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
@@ -19,11 +19,7 @@
         .chat-input-container { display: flex; gap: 12px; align-items: flex-end; }
         .chat-input-field { flex: 1; border: 1px solid #d1d5db; border-radius: 20px; padding: 12px 16px; font-size: 14px; resize: none; min-height: 44px; max-height: 120px; outline: none; transition: border-color 0.2s; }
         .send-button { background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
-        .connection-status { position: absolute; bottom: -50px; right: 0; background: rgba(0, 0, 0, 0.9); color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; display: none; max-width: 300px; line-height: 1.4; }
-        .connection-status.show { display: block; }
-        .connection-status.error { background: #dc2626; }
-        .connection-status.success { background: #16a34a; }
-        .connection-status.warning { background: #f59e0b; }
+        .send-button:disabled { opacity: 0.5; cursor: not-allowed; }
         .message { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
         .message.user { flex-direction: row-reverse; }
         .message-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
@@ -40,9 +36,6 @@
         .typing-dot:nth-child(2) { animation-delay: 0.1s; }
         .typing-dot:nth-child(3) { animation-delay: 0.2s; }
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
-        .deployment-instructions { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 13px; line-height: 1.5; }
-        .deployment-instructions h4 { color: #92400e; margin-bottom: 8px; font-size: 14px; }
-        .deployment-instructions code { background: #fff; padding: 2px 4px; border-radius: 3px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -51,9 +44,6 @@
             <button class="chat-button" id="chatButton">
                 <img src="https://via.placeholder.com/64x64/7dd3c0/ffffff?text=SACCO" alt="SOYOSOYO SACCO Assistant">
             </button>
-            <div class="connection-status" id="connectionStatus">
-                Checking deployment status...
-            </div>
         </div>
         
         <div class="chat-window" id="chatWindow">
@@ -70,14 +60,14 @@
             
             <div class="chat-messages" id="chatMessages">
                 <div class="welcome-message">
-                    <h3>SOYOSOYO SACCO Assistant</h3>
-                    <p>I'm here to help with questions about SACCO services and policies.</p>
+                    <h3>Welcome to SOYOSOYO SACCO</h3>
+                    <p>I'm here to help with questions about SACCO services, policies, and procedures. How can I assist you today?</p>
                 </div>
             </div>
             
             <div class="chat-input">
                 <div class="chat-input-container">
-                    <textarea class="chat-input-field" id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <textarea class="chat-input-field" id="messageInput" placeholder="Ask about loans, savings, membership..." rows="1"></textarea>
                     <button class="send-button" id="sendButton">
                         <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
                             <path d="M28 16L4 28V20L20 16L4 12V4L28 16Z" fill="white"/>
@@ -89,26 +79,12 @@
     </div>
 
     <script>
-        // =============================================================================
-        // CONFIGURATION: REPLACE WITH YOUR ACTUAL DEPLOYMENT URL
-        // =============================================================================
-        
-        // STEP 1: Deploy your app on Replit
-        // STEP 2: Copy the deployment URL from Replit (e.g., https://your-app.replit.app)  
-        // STEP 3: Replace the URL below:
-        const API_BASE_URL = 'https://d672f83f-0503-4c6c-a631-1c8bd269488b-00-25cw50rzh4h6a.kirk.replit.dev';
-        
-        // Alternative URLs to try (optional - for auto-detection)
-        const FALLBACK_URLS = [
-            // Add additional URLs if needed, or leave empty
-        ];
-        
         class SoyoSaccoChatWidget {
             constructor() {
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
-                this.apiBaseUrl = null;
+                this.apiBaseUrl = 'https://d672f83f-0503-4c6c-a631-1c8bd269488b-00-25cw50rzh4h6a.kirk.replit.dev';
                 
                 this.chatButton = document.getElementById('chatButton');
                 this.chatWindow = document.getElementById('chatWindow');
@@ -116,10 +92,8 @@
                 this.messageInput = document.getElementById('messageInput');
                 this.sendButton = document.getElementById('sendButton');
                 this.chatMessages = document.getElementById('chatMessages');
-                this.connectionStatus = document.getElementById('connectionStatus');
                 
                 this.setupEventListeners();
-                this.checkAPIConnection();
             }
             
             setupEventListeners() {
@@ -132,82 +106,12 @@
                         this.sendMessage();
                     }
                 });
-            }
-            
-            async checkAPIConnection() {
-                // Check if URL is configured
-                if (API_BASE_URL === 'REPLACE_WITH_YOUR_DEPLOYMENT_URL') {
-                    this.showConnectionStatus('❌ Configuration needed: Replace API_BASE_URL with your deployment URL', 'error');
-                    this.showDeploymentInstructions();
-                    return;
-                }
                 
-                // Test main URL
-                const urlsToTest = [API_BASE_URL, ...FALLBACK_URLS];
-                
-                for (const url of urlsToTest) {
-                    try {
-                        this.showConnectionStatus(`Testing ${url.replace(/https?:\/\//, '')}...`, 'warning');
-                        
-                        // Try a simple API test instead of health endpoint
-                        const response = await fetch(`${url}/api/chat`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ message: 'connection_test', conversationId: null }),
-                            signal: AbortSignal.timeout(8000)
-                        });
-                        
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.response) {
-                                this.apiBaseUrl = url;
-                                this.showConnectionStatus(`✅ Connected to SOYOSOYO SACCO API`, 'success');
-                                setTimeout(() => this.hideConnectionStatus(), 3000);
-                                return;
-                            }
-                        }
-                    } catch (error) {
-                        console.log(`Failed to connect to ${url}:`, error.message);
-                        // Continue to try other URLs or show connection working anyway
-                    }
-                }
-                
-                // If fetch fails due to CORS/file:// issues, assume API is working
-                // since we know the URL is properly configured
-                this.apiBaseUrl = API_BASE_URL;
-                this.showConnectionStatus('✅ API configured - ready to chat', 'success');
-                setTimeout(() => this.hideConnectionStatus(), 3000);
-            }
-            
-            showDeploymentInstructions() {
-                const instructionsDiv = document.createElement('div');
-                instructionsDiv.className = 'deployment-instructions';
-                instructionsDiv.innerHTML = `
-                    <h4>🔧 Configuration Required</h4>
-                    <p>To use this chat widget:</p>
-                    <ol>
-                        <li>Replace <code>REPLACE_WITH_YOUR_DEPLOYMENT_URL</code> with your actual API URL</li>
-                        <li>Make sure your server is running</li>
-                        <li>Refresh this page</li>
-                    </ol>
-                    <p><strong>Your current API URL should be:</strong><br>
-                    <code>https://d672f83f-0503-4c6c-a631-1c8bd269488b-00-25cw50rzh4h6a.kirk.replit.dev</code></p>
-                `;
-                
-                // Add to chat if not already present
-                if (!this.chatMessages.querySelector('.deployment-instructions')) {
-                    this.chatMessages.appendChild(instructionsDiv);
-                    this.scrollToBottom();
-                }
-            }
-            
-            showConnectionStatus(message, type = 'info') {
-                this.connectionStatus.textContent = message;
-                this.connectionStatus.className = `connection-status show ${type}`;
-            }
-            
-            hideConnectionStatus() {
-                this.connectionStatus.classList.remove('show');
+                // Auto-resize textarea
+                this.messageInput.addEventListener('input', () => {
+                    this.messageInput.style.height = 'auto';
+                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+                });
             }
             
             toggleChat() {
@@ -230,11 +134,6 @@
             }
             
             async sendMessage() {
-                if (!this.apiBaseUrl) {
-                    this.addMessage("Please configure the API URL first. See instructions above.", 'assistant');
-                    return;
-                }
-                
                 const message = this.messageInput.value.trim();
                 if (!message || this.isLoading) return;
                 
@@ -273,7 +172,7 @@
                 } catch (error) {
                     console.error('Chat error:', error);
                     this.hideTypingIndicator();
-                    this.addMessage(`Sorry, I encountered an error: ${error.message}. Please check if the server is running and try again.`, 'assistant');
+                    this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
                 } finally {
                     this.isLoading = false;
                     this.sendButton.disabled = false;
