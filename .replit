@@ -11,6 +11,10 @@ run = ["sh", "-c", "node start.js"]
 build = ["sh", "-c", "node build.js"]
 
 [[ports]]
+localPort = 3005
+externalPort = 3000
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
