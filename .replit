@@ -10,6 +10,9 @@ deploymentTarget = "autoscale"
 run = ["sh", "-c", "node start.js"]
 build = ["sh", "-c", "node build.js"]
 
+[[ports]]
+localPort = 3003
+externalPort = 3003
 
 [[ports]]
 localPort = 5000
