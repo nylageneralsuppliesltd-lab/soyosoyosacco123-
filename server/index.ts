@@ -35,6 +35,9 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Serve static files from public directory (for logos, etc.)
+app.use(express.static(path.resolve(__dirname, '..', 'public')));
+
 const server = createServer(app);
 
 registerRoutes(app).then(async () => {
