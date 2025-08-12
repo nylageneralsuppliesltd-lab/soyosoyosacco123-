@@ -3,6 +3,8 @@
 ## Overview
 This is a full-stack TypeScript application providing the SOYOSOYO SACCO Assistant, a specialized chatbot backend service with OpenAI integration and an administrative dashboard. The system features a React frontend for monitoring and testing the chatbot API, and an Express.js backend for chat interactions, file processing, and analytics tracking tailored for SACCO services and member support. The project aims to provide document-specific AI responses, ensuring accuracy and preventing external knowledge contamination.
 
+**Latest Update (Aug 2025):** Successfully deployed with SVG-based embeddable chat widgets for Google Sites integration, eliminating external image dependencies and ensuring reliable SOYOSOYO SACCO branding.
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
@@ -45,6 +47,12 @@ Preferred communication style: Simple, everyday language.
 - **Size Limits**: 10MB per file.
 - **Processing**: Automatic text extraction, content analysis, metadata storage.
 - **Storage**: Local file system with database metadata tracking.
+
+### Embeddable Chat Widgets
+- **Google Sites Integration**: Self-contained HTML with SVG-based SOYOSOYO SACCO logos
+- **Universal Compatibility**: Works in any embedding environment without external dependencies
+- **Professional Branding**: SOYOSOYO SACCO colors (#7dd3c0, #1e7b85) and styling throughout
+- **Deployment Ready**: `google-sites-svg-embed.html` available at production URL
 
 ### Development Tools
 - **Build System**: Vite, ESBuild
