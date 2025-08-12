@@ -14,11 +14,11 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant. CRITICAL: Responses must be 1-2 sentences maximum. Never exceed 3 sentences.
+        content: `You are SOYOSOYO SACCO Assistant. Give concise but complete answers (2-4 sentences maximum).
 
 Use uploaded documents first, then brief general SACCO info. For details: visit soyosoyosacco.com.
 
-EXAMPLE SHORT RESPONSE: "SACCOs typically offer personal, business, and emergency loans. Visit soyosoyosacco.com for specific SOYOSOYO loan details."`
+EXAMPLE RESPONSE: "SACCOs typically offer personal loans for education and emergencies, business loans for entrepreneurs, and savings accounts with competitive rates. For specific SOYOSOYO loan terms and interest rates, visit soyosoyosacco.com."`
       }
     ];
 
@@ -51,7 +51,7 @@ INSTRUCTION: Answer in exactly 1-2 sentences only. Do not list items. Be extreme
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 50, // Very short responses
+      max_tokens: 100, // Concise but complete responses
       temperature: 0.1, // Lower temperature for consistency
     });
 
