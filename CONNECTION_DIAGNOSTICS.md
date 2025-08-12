@@ -1,47 +1,64 @@
-# Connection Failure Diagnosis
+# Server Connection Diagnostics - SOYOSOYO SACCO Assistant
 
-## Current Status
-- ✅ Local API is working correctly (returns proper responses with CORS)
-- ❌ Deployed URL is not accessible: `workspace.nylageneralsupp.repl.co`
-- ❌ DNS resolution failed for deployment URL
+## ✅ SERVER STATUS (Both Working)
 
-## Root Cause: Application Not Deployed
-The connection failure is because the application hasn't been deployed to Replit yet. The URL `workspace.nylageneralsupp.repl.co` doesn't exist until deployment is completed.
+### Production Server
+- **URL**: https://soyosoyosacco-123-nylageneralsupp.replit.app
+- **Health**: ✅ Healthy (4275+ seconds uptime = 71+ minutes)
+- **Environment**: Production
 
-## Immediate Solutions
+### Development Server  
+- **URL**: http://localhost:5000
+- **Health**: ✅ Healthy (231+ seconds uptime)
+- **Environment**: Development
 
-### 1. Deploy the Application First
-**Required Steps:**
-1. Click "Deploy" button in Replit
-2. Configure deployment:
-   - Build Command: `node scripts/deploy-build-v2.js`
-   - Start Command: `node start.js`
-   - Set environment variables: DATABASE_URL, OPENAI_API_KEY
+## ✅ ENVIRONMENT STATUS
 
-### 2. Get Correct Deployment URL
-After deployment, the actual URL will be provided by Replit. It might be:
-- `https://workspace--username.repl.co`
-- `https://project-name--username.replit.app`
-- Or another format depending on your setup
+- **OPENAI_API_KEY**: ✅ Present
+- **DATABASE_URL**: ✅ Present
+- **Server Processes**: ✅ Running (tsx and node processes active)
 
-### 3. Update Widget Configuration
-Once you have the real deployment URL, update the widget:
+## 🔍 POSSIBLE CONNECTION ISSUES
 
-```javascript
-// In embed-chat-updated.html, line ~386
-this.apiBaseUrl = 'https://YOUR-ACTUAL-DEPLOYMENT-URL';
+### 1. OpenAI Rate Limit (Likely Cause)
+From earlier logs: `429 You exceeded your current quota`
+- **Impact**: Chat responses fail even though server is healthy
+- **Solution**: OpenAI API key needs quota or billing update
+
+### 2. Browser/Network Issues
+- **Browser cache**: Try hard refresh (Ctrl+F5)
+- **Network**: Check if firewall blocking requests
+- **CORS**: Check browser console for CORS errors
+
+### 3. Chat Widget Configuration
+The chat widget tries to connect to production server, but may show connection errors if:
+- OpenAI quota exceeded
+- Network timeout
+- CORS policy issues
+
+## 🔧 IMMEDIATE TROUBLESHOOTING
+
+### Test 1: Direct Health Check (Working)
+```
+Production: {"status":"healthy","uptime":4275+}
+Development: {"status":"healthy","uptime":231+}
 ```
 
-## Widget Connection Test Results
-- ✅ CORS headers are properly configured
-- ✅ API endpoint responds correctly locally
-- ✅ Widget code is properly structured
-- ❌ Deployment URL doesn't exist yet
+### Test 2: Chat API (Testing...)
+- Testing production chat endpoint
+- Testing development chat endpoint
 
-## Next Steps
-1. **Deploy the application** (user must do this manually)
-2. **Get the real deployment URL**
-3. **Update widget with correct URL**
-4. **Test connection from Google Sites**
+### Test 3: Browser Console
+Check browser developer tools for:
+- Network errors
+- CORS errors  
+- JavaScript errors
+- Failed fetch requests
 
-The technical fixes are complete - only deployment is needed.
+## 💡 LIKELY SOLUTIONS
+
+1. **OpenAI Quota**: Add billing/credits to OpenAI account
+2. **Browser**: Clear cache and hard refresh
+3. **Network**: Check if corporate firewall blocking .replit.app domain
+
+Both servers are healthy - the issue is likely OpenAI rate limiting or client-side connection problems.
