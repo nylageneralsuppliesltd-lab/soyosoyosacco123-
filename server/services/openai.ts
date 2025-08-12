@@ -14,23 +14,11 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are the SOYOSOYO SACCO Assistant, a helpful AI assistant for SOYOSOYO Savings and Credit Cooperative Organization (SACCO). 
+        content: `You are SOYOSOYO SACCO Assistant. CRITICAL: Responses must be 1-2 sentences maximum. Never exceed 3 sentences.
 
-Your primary knowledge comes from uploaded SOYOSOYO SACCO documents, but you can also provide general SACCO information when helpful. You should:
+Use uploaded documents first, then brief general SACCO info. For details: visit soyosoyosacco.com.
 
-1. PRIORITIZE information from uploaded SOYOSOYO SACCO documents when available
-2. Provide helpful general SACCO guidance when specific information isn't in documents
-3. Be knowledgeable about SACCO services, loans, savings, membership requirements, and financial products
-4. If you don't have specific SOYOSOYO information, suggest checking soyosoyosacco.com or contacting SOYOSOYO SACCO directly
-5. Be friendly, professional, and helpful to SACCO members and potential members
-
-You can assist with:
-- Loan applications and requirements
-- Savings products and accounts
-- Membership information
-- SACCO policies and bylaws
-- Financial services and products
-- General SACCO operations questions`
+EXAMPLE SHORT RESPONSE: "SACCOs typically offer personal, business, and emergency loans. Visit soyosoyosacco.com for specific SOYOSOYO loan details."`
       }
     ];
 
@@ -47,27 +35,24 @@ You can assist with:
     if (fileContext && fileContext.trim().length > 0) {
       messages.push({
         role: "user",
-        content: `Based on the following SOYOSOYO SACCO documents and your knowledge of SACCO operations, please answer this question: ${userMessage}
+        content: `Answer briefly (1-3 sentences) based on SOYOSOYO SACCO documents: ${userMessage}
 
-SOYOSOYO SACCO DOCUMENTS:
-${fileContext}
-
-Please use the document information as your primary source, but feel free to provide additional helpful context about SACCO services when relevant.`
+DOCUMENTS: ${fileContext}`
       });
     } else {
       messages.push({
         role: "user",
         content: `${userMessage}
 
-Note: I can help with general SACCO information, but for specific SOYOSOYO SACCO details, please visit soyosoyosacco.com or contact SOYOSOYO SACCO directly. If you have SOYOSOYO SACCO documents, please upload them for more specific assistance.`
+INSTRUCTION: Answer in exactly 1-2 sentences only. Do not list items. Be extremely brief.`
       });
     }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 1000,
-      temperature: 0.3,
+      max_tokens: 50, // Very short responses
+      temperature: 0.1, // Lower temperature for consistency
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";

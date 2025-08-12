@@ -12,61 +12,9 @@ import { insertFileSchema } from "../shared/schema";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function preloadAssets() {
-  const assetsDir = path.join(__dirname, "..", "attached_assets");
-  const assetFiles = ["SOYOSOYO BY LAWS -2025_1754774335855.pdf", "loan policy_1754774281152.pdf"];
-  console.log(`DEBUG: Preloading assets from ${assetsDir}`);
-
-  // Create initial conversation for assets if it doesn't exist
-  try {
-    let initialConversation = await storage.getConversation("initial-assets");
-    if (!initialConversation) {
-      initialConversation = await storage.createConversation({
-        id: "initial-assets",
-        title: "Initial SACCO Documents",
-      });
-      console.log("DEBUG: Created initial conversation for assets");
-    }
-  } catch (error) {
-    console.error("Error creating initial conversation:", error);
-  }
-
-  for (const fileName of assetFiles) {
-    const filePath = path.join(assetsDir, fileName);
-    try {
-      await fs.access(filePath);
-      const fileBuffer = await fs.readFile(filePath);
-      const mimeType = "application/pdf";
-      const size = fileBuffer.length;
-      const { extractedText, analysis } = await processUploadedFile(fileBuffer, fileName, mimeType);
-
-      // Check if file already exists in database
-      const existingFiles = await storage.getAllFiles().then(files => 
-        files.filter(f => f.filename === fileName)
-      );
-
-      if (existingFiles.length === 0) {
-        const fileData = insertFileSchema.parse({
-          conversationId: "initial-assets",
-          filename: fileName,
-          originalName: fileName,
-          mimeType,
-          size,
-          extractedText,
-          metadata: { analysis },
-        });
-
-        await storage.createFile({
-          ...fileData,
-          content: fileBuffer.toString("base64"),
-        });
-        console.log(`DEBUG: Preloaded ${fileName} into database`);
-      } else {
-        console.log(`DEBUG: ${fileName} already exists in database, skipping preload`);
-      }
-    } catch (error) {
-      console.error(`Error preloading ${fileName}:`, error);
-    }
-  }
+  console.log("DEBUG: Skipping asset preloading to conserve OpenAI quota");
+  // Disabled to prevent OpenAI quota exhaustion during server startup
+  // Files can still be uploaded via the UI when needed
 }
 
 const app = express();
