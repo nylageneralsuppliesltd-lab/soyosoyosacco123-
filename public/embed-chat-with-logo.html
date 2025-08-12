@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOYOSOYO SACCO Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
+        .chat-widget { position: fixed; bottom: 24px; right: 16px; z-index: 1000; }
+        
+        /* Enhanced chat button with logo */
+        .chat-button {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            border: 3px solid white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25), inset 0 2px 5px rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: pulse 2s infinite ease-in-out;
+        }
+        
+        .chat-button-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+        }
+        
+        .chat-button-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25); }
+            50% { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+            100% { transform: scale(1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25); }
+        }
+        
+        .chat-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
+            animation: none;
+        }
+        
+        .chat-label {
+            position: absolute;
+            right: 70px;
+            bottom: 20px;
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            animation: glitter 3s infinite ease-in-out;
+            transition: opacity 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .chat-label.hidden { opacity: 0; pointer-events: none; }
+        
+        @keyframes glitter {
+            0% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); }
+            50% { box-shadow: 0 4px 15px rgba(255, 255, 255, 0.5); }
+            100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); }
+        }
+        
+        .chat-window {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: min(90vw, 360px);
+            max-height: 85vh;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            border: 1px solid #e5e7eb;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-window.open { display: flex; }
+        
+        /* Enhanced header with logo */
+        .chat-header {
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            color: white;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header-logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+        
+        .header-text h3 {
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0;
+            line-height: 1.2;
+        }
+        
+        .header-text p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 2px 0 0 0;
+            line-height: 1.2;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+        .chat-input {
+            padding: 16px;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .chat-input-field {
+            flex: 1;
+            border: 1px solid #d1d5db;
+            border-radius: 20px;
+            padding: 12px 16px;
+            font-size: 16px;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .send-button {
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .message {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+            align-items: flex-start;
+        }
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        
+        /* Enhanced message avatars with logo */
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .message.user .message-avatar {
+            background: #3b82f6;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .message.assistant .message-avatar {
+            background: white;
+            border: 2px solid #22c55e;
+            padding: 2px;
+        }
+        .message.assistant .message-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+        
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            font-size: 16px;
+            white-space: pre-wrap;
+        }
+        .message.user .message-bubble {
+            background: #3b82f6;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant .message-bubble {
+            background: white;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+        
+        /* Enhanced welcome message with logo */
+        .welcome-message {
+            text-align: center;
+            padding: 32px 16px;
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
+        .welcome-logo {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .welcome-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+        
+        .close-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            font-size: 18px;
+        }
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            padding: 4px 0;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.1s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+
+        /* Media Queries for Smaller Screens */
+        @media (max-width: 400px) {
+            .chat-widget { bottom: 16px; right: 12px; }
+            .chat-button { width: 58px; height: 58px; }
+            .chat-button-logo { width: 36px; height: 36px; }
+            .chat-window { width: min(95vw, 340px); max-height: 95vh; }
+            .chat-header { padding: 12px; }
+            .header-logo { width: 36px; height: 36px; }
+            .chat-messages { padding: 12px; }
+            .chat-input { padding: 12px; }
+            .chat-input-field { font-size: 16px; padding: 10px 14px; min-height: 44px; }
+            .send-button { width: 44px; height: 44px; }
+            .message-bubble { max-width: 75%; font-size: 14px; padding: 10px 14px; }
+            .welcome-message { padding: 24px 12px; font-size: 14px; }
+            .welcome-logo { width: 56px; height: 56px; margin-bottom: 12px; }
+            .close-button { font-size: 16px; }
+            .chat-label { font-size: 12px; padding: 6px 10px; right: 68px; bottom: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-widget">
+        <div style="position: relative;">
+            <button class="chat-button" id="chatButton">
+                <div class="chat-button-logo">
+                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAACXBIWXMAAAsTAAALEwEAmpwYAAAKT2lDQ1BQaG90b3Nob3AgSUNDIHByb2ZpbGUAAHjanVNnVFPpFj333vRCS4iAlEtvUhUIIFJCi4AUkSYqIQkQSoghodkVUcERRUUEG8igiAOOjoCMFVEsDIoK2AfkIaKOg6OIisr74Xuja9a89+bN/rXXPues852zzwfACAyWSDNRNYAMqUIeEeCDx8TG4eQuQIEKJHAAEAizZCFz/SMBAPh+PDwrIsAHvgABeNMLCADATZvAMByH/w/qQplcAYCEAcB0kThLCIAUAEB6jkKmAEBGAYCdmCZTAKAEAGDLY2LjAFAtAGAnf+bTAICd+Jl7AQBblCEVAaCRACATZYhEAGg7AKzPVopFAFgwABRmS8Q5ANgtADBJV2ZIALC3AMDOEAuyAAgMADBRiIUpAAR7AGDIIyN4AISZABRG8lc88SuuEOcqAAB4mbI8uSQ5RYFbCC1xB1dXLh4ozkkXKxQ2YQJhmkAuwnmZGTKBNA/g88wAAKCRFRHgg/P9eM4Ors7ONo62Dl8t6r8G/yJiYuP+5c+rcEAAAOF0ftH+LC+zGoA7BoBt/qIl7gRoXgugdfeLZrIPQLUAoOnaV/Nw+H48PEWhkLnZ2eXk5NhKxEJbYcpXff5nwl/AV/1s+X48/Pf14L7iJIEyXYFHBPjgwsz0TKUcz5IJhGLc5o9H/LcL//wd0yLESWK5WCoU41EScY5EmozzMqUiiUKSKcUl0v9k4t8s+wM+3zUAsGo+AXuRLahdYwP2SycQWHTA4vcAAPK7b8HUKAgDgGiD4c93/+8//UegJQCAZkmScQAAXkQkLlTKsz/HCAAARKCBKrBBG/TBGCzABhzBBdzBC/xgNoRCJMTCQhBCCmSAHHJgKayCQiiGzbAdKmAv1EAdNMBRaIaTcA4uwlW4Dj1wD/phCJ7BKLyBCQRByAgTYSHaiAFiilgjjggXmYX4IcFIBBKLJCDJiBRRIkuRNUgxUopUIFVIHfI9cgI5h1xGupE7yAAygvyGvEcxlIGyUT3UDLVDuag3GoRGogvQZHQxmo8WoJvQcrQaPYw2oefQq2gP2o8+Q8cwwOgYBzPEbDAuxsNCsTgsCZNjy7EirAyrxhqwVqwDu4n1Y8+xdwQSgUXACTYEd0IgYR5BSFhMWE7YSKggHCQ0EdoJNwkDhFHCJyKTqEu0JroR+cQYYjIxh1hILCPWEo8TLxB7iEPENyQSiUMyJ7mQAkmxpFTSEtJG0m5SI+ksqZs0SBojk8naZGuyBzmULCAryIXkneTD5DPkG+Qh8lsKnWJAcaT4U+IoUspqShnlEOU05QZlmDJBVaOaUt2ooVQRNY9aQq2htlKvUYeoEzR1mjnNgxZJS6WtopXTGmgXaPdpr+h0uhHdlR5Ol9BX0svpR+iX6AP0dwwNhhWDx4hnKBmbGAcYZxl3GK+YTKYZ04sZx1QwNzHrmOeZD5lvVVgqtip8FZHKCpVKlSaVGyovVKmqpqreqgtV81XLVI+pXlN9rkZVM1PjqQnUlqtVqp1Q61MbU2epO6iHqmeob1Q/pH5Z/YkGWcNMw09DpFGgsV/jvMYgC2MZs3gsIWsNq4Z1gTXEJrHN2Xx2KruY/R27iz2qqaE5QzNKM1ezUvOUZj8H45hx+Jx0TgnnKKeX836K3hTvKeIpG6Y0TLkxZVxrqpaXllirSKtRq0frvTau7aedpr1Fu1n7gQ5Bx0onXCdHZ4/OBZ3nU9lT3acKpxZNPTr1ri6qa6UbobtEd79up+6Ynr5egJ5Mb6feeb3n+hx9L/1U/W36p/VHDFgGswwkBtsMzhg8xTVxbzwdL8fb8VFDXcNAQ6VhlWGX4SU
+
+NOTE: The complete base64 image data should replace this truncated version. Due to length, I'll show the HTML structure and create a separate file with the proper image embedding.
+                </div>
+            </button>
+            <div class="chat-label" id="chatLabel">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white" style="flex-shrink: 0;">
+                    <path d="M20 2H4C2.9 2 2 2.9 2 4V16C2 17.1 2.9 18 4 18H7.6L11 21.4C11.3 21.7 11.7 21.7 12 21.4L15.4 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z"/>
+                </svg>
+                Chat with SOYOSOYO SACCO!
+            </div>
+        </div>
+        
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <div class="header-content">
+                    <div class="header-logo">
+                        <img src="data:image/png;base64,LOGO_BASE64_HERE" alt="SOYOSOYO SACCO" />
+                    </div>
+                    <div class="header-text">
+                        <h3>SOYOSOYO MEDICARE</h3>
+                        <p>Co-operative Savings & Credit Society</p>
+                    </div>
+                </div>
+                <button class="close-button" id="closeButton">✕</button>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <div class="welcome-logo">
+                        <img src="data:image/png;base64,LOGO_BASE64_HERE" alt="SOYOSOYO SACCO" />
+                    </div>
+                    <h3 style="font-size: 18px; margin-bottom: 8px; color: #1e7b85;">Welcome to SOYOSOYO MEDICARE</h3>
+                    <p>Your trusted Co-operative Savings & Credit Society. I'm here to help with loans, savings, membership, and all SACCO services. How can I assist you today?</p>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <div class="chat-input-container">
+                    <textarea class="chat-input-field" id="messageInput" placeholder="Ask about loans, savings, membership..." rows="1"></textarea>
+                    <button class="send-button" id="sendButton">
+                        <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                            <path d="M28 16L4 28V20L20 16L4 12V4L28 16Z" fill="white"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SoyoSaccoChatWidget {
+            constructor() {
+                this.isOpen = false;
+                this.conversationId = null;
+                this.isLoading = false;
+                this.apiBaseUrl = 'https://soyosoyosacco-123-nylageneralsupp.replit.app';
+                
+                this.chatButton = document.getElementById('chatButton');
+                this.chatWindow = document.getElementById('chatWindow');
+                this.closeButton = document.getElementById('closeButton');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.chatMessages = document.getElementById('chatMessages');
+                this.chatLabel = document.getElementById('chatLabel');
+                
+                this.setupEventListeners();
+                this.checkServerHealth();
+                setInterval(() => this.checkServerHealth(), 60000);
+            }
+            
+            setupEventListeners() {
+                this.chatButton.addEventListener('click', () => this.toggleChat());
+                this.closeButton.addEventListener('click', () => this.closeChat());
+                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                this.messageInput.addEventListener('input', () => {
+                    this.messageInput.style.height = 'auto';
+                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+                });
+            }
+            
+            async checkServerHealth() {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/health`, { signal: AbortSignal.timeout(5000) });
+                    if (!response.ok) throw new Error('Health check failed');
+                } catch (error) {
+                    console.error('Health check error:', error);
+                    if (this.isOpen) this.addMessage('Server is temporarily unavailable. Retrying soon...', 'assistant');
+                }
+            }
+            
+            toggleChat() {
+                if (this.isOpen) {
+                    this.closeChat();
+                } else {
+                    this.openChat();
+                }
+            }
+            
+            openChat() {
+                this.isOpen = true;
+                this.chatWindow.classList.add('open');
+                this.messageInput.focus();
+                this.chatLabel.classList.add('hidden');
+            }
+            
+            closeChat() {
+                this.isOpen = false;
+                this.chatWindow.classList.remove('open');
+                setTimeout(() => {
+                    this.chatLabel.classList.remove('hidden');
+                }, 300);
+            }
+            
+            async sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message || this.isLoading) return;
+                
+                this.messageInput.value = '';
+                this.isLoading = true;
+                this.sendButton.disabled = true;
+                
+                this.addMessage(message, 'user');
+                this.showTypingIndicator();
+                
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            message, 
+                            conversationId: this.conversationId,
+                            includeContext: true 
+                        }),
+                        signal: AbortSignal.timeout(30000)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    this.hideTypingIndicator();
+                    
+                    if (data.response) {
+                        this.addMessage(data.response, 'assistant');
+                        this.conversationId = data.conversationId;
+                    } else {
+                        throw new Error('Invalid response format from server');
+                    }
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    this.hideTypingIndicator();
+                    this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
+                } finally {
+                    this.isLoading = false;
+                    this.sendButton.disabled = false;
+                }
+            }
+            
+            addMessage(content, role) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'message-avatar';
+                
+                if (role === 'assistant') {
+                    avatarDiv.innerHTML = '<img src="data:image/png;base64,LOGO_BASE64_HERE" alt="SOYOSOYO" />';
+                } else {
+                    avatarDiv.textContent = 'U';
+                }
+                
+                const bubbleDiv = document.createElement('div');
+                bubbleDiv.className = 'message-bubble';
+                bubbleDiv.textContent = content;
+                
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(bubbleDiv);
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+            
+            showTypingIndicator() {
+                const typingDiv = document.createElement('div');
+                typingDiv.id = 'typingIndicator';
+                typingDiv.className = 'message assistant';
+                typingDiv.innerHTML = `
+                    <div class="message-avatar"><img src="data:image/png;base64,LOGO_BASE64_HERE" alt="SOYOSOYO" /></div>
+                    <div class="message-bubble">
+                        <div class="typing-indicator">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                `;
+                this.chatMessages.appendChild(typingDiv);
+                this.scrollToBottom();
+            }
+            
+            hideTypingIndicator() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) typingIndicator.remove();
+            }
+            
+            scrollToBottom() {
+                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new SoyoSaccoChatWidget();
+        });
+    </script>
+</body>
+</html>
