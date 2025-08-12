@@ -74,7 +74,11 @@ registerRoutes(app).then(async () => {
           req.originalUrl.includes('.js') ||
           req.originalUrl.includes('.css') ||
           req.originalUrl.includes('.tsx') ||
-          req.originalUrl.includes('.ts')) {
+          req.originalUrl.includes('.ts') ||
+          req.originalUrl.includes('.html') ||
+          req.originalUrl.includes('.png') ||
+          req.originalUrl.includes('.jpg') ||
+          req.originalUrl.includes('.svg')) {
         return next();
       }
       res.sendFile(path.resolve(distPath, "index.html"));
