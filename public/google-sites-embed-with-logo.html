@@ -39,19 +39,12 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
         
-        /* SACCO logo placeholder - replace with actual image */
+        /* SACCO logo - actual image */
         .sacco-logo {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background: linear-gradient(135deg, #7dd3c0 20%, #1e7b85 80%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 16px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            object-fit: contain;
         }
         
         @keyframes pulse {
@@ -413,7 +406,7 @@
         <div style="position: relative;">
             <button class="chat-button" id="chatButton">
                 <div class="chat-button-logo">
-                    <div class="sacco-logo">SOYOSOYO</div>
+                    <img class="sacco-logo" src="https://soyosoyosacco-123-nylageneralsupp.replit.app/soyosoyo-logo.png" alt="SOYOSOYO SACCO Logo" />
                 </div>
             </button>
             <div class="chat-label" id="chatLabel">
@@ -428,7 +421,7 @@
             <div class="chat-header">
                 <div class="header-content">
                     <div class="header-logo">
-                        <div class="sacco-logo" style="font-size: 12px;">SOYOSOYO</div>
+                        <img class="sacco-logo" src="https://soyosoyosacco-123-nylageneralsupp.replit.app/soyosoyo-logo.png" alt="SOYOSOYO SACCO Logo" />
                     </div>
                     <div class="header-text">
                         <h3>SOYOSOYO MEDICARE</h3>
@@ -441,7 +434,7 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="welcome-message">
                     <div class="welcome-logo">
-                        <div class="sacco-logo" style="font-size: 18px;">SOYOSOYO</div>
+                        <img class="sacco-logo" src="https://soyosoyosacco-123-nylageneralsupp.replit.app/soyosoyo-logo.png" alt="SOYOSOYO SACCO Logo" />
                     </div>
                     <div class="welcome-title">Welcome to SOYOSOYO MEDICARE</div>
                     <div class="welcome-subtitle">Co-operative Savings & Credit Society</div>
@@ -595,7 +588,7 @@
                 avatarDiv.className = 'message-avatar';
                 
                 if (role === 'assistant') {
-                    avatarDiv.innerHTML = '<div class="sacco-logo" style="font-size: 10px; color: #1e7b85; font-weight: bold;">SOYOSOYO</div>';
+                    avatarDiv.innerHTML = '<img class="sacco-logo" src="https://soyosoyosacco-123-nylageneralsupp.replit.app/soyosoyo-logo.png" alt="SOYOSOYO SACCO" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;" />';
                 } else {
                     avatarDiv.textContent = 'U';
                 }
@@ -616,7 +609,7 @@
                 typingDiv.className = 'message assistant';
                 typingDiv.innerHTML = `
                     <div class="message-avatar">
-                        <div class="sacco-logo" style="font-size: 10px; color: #1e7b85; font-weight: bold;">SOYOSOYO</div>
+                        <img class="sacco-logo" src="https://soyosoyosacco-123-nylageneralsupp.replit.app/soyosoyo-logo.png" alt="SOYOSOYO SACCO" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;" />
                     </div>
                     <div class="message-bubble">
                         <div class="typing-indicator">
