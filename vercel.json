@@ -1,12 +1,17 @@
 {
   "version": 2,
+  "installCommand": "npm install",
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/api/index.ts"
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|svg|html))",
+      "src": "/google-sites-svg-embed.html",
+      "dest": "/api/index.ts"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|svg|ico))",
       "dest": "/public/$1"
     },
     {

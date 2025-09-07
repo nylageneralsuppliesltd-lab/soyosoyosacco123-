@@ -1,0 +1,41 @@
+[20:36:55.832] Running build in Washington, D.C., USA (East) – iad1
+[20:36:55.832] Build machine configuration: 2 cores, 8 GB
+[20:36:55.847] Cloning github.com/nylageneralsuppliesltd-lab/soyosoyosacco123- (Branch: main, Commit: 1f8ed11)
+[20:36:55.980] Previous build caches not available
+[20:36:56.280] Cloning completed: 433.000ms
+[20:36:56.708] Running "vercel build"
+[20:36:57.100] Vercel CLI 47.0.5
+[20:36:57.878] Running "install" command: `npm install`...
+[20:37:02.266] npm warn deprecated gm@1.25.1: The gm module has been sunset. Please migrate to an alternative. https://github.com/aheckmann/gm?tab=readme-ov-file#2025-02-24-this-project-is-not-maintained
+[20:37:07.791] 
+[20:37:07.793] added 429 packages, and audited 430 packages in 9s
+[20:37:07.794] 
+[20:37:07.794] 55 packages are looking for funding
+[20:37:07.794]   run `npm fund` for details
+[20:37:07.794] 
+[20:37:07.795] found 0 vulnerabilities
+[20:37:08.060] 
+[20:37:08.061] > rest-express@1.0.0 build
+[20:37:08.062] > npm install && npm audit fix && npx drizzle-kit push && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+[20:37:08.062] 
+[20:37:08.970] 
+[20:37:08.971] up to date, audited 430 packages in 848ms
+[20:37:08.972] 
+[20:37:08.972] 55 packages are looking for funding
+[20:37:08.972]   run `npm fund` for details
+[20:37:08.972] 
+[20:37:08.973] found 0 vulnerabilities
+[20:37:10.335] 
+[20:37:10.336] up to date, audited 430 packages in 1s
+[20:37:10.336] 
+[20:37:10.336] 55 packages are looking for funding
+[20:37:10.337]   run `npm fund` for details
+[20:37:10.337] 
+[20:37:10.337] found 0 vulnerabilities
+[20:37:11.314] npm warn exec The following package was not found and will be installed: drizzle-kit@0.31.4
+[20:37:13.766] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[20:37:13.804] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[20:37:14.536] No config path provided, using default 'drizzle.config.ts'
+[20:37:14.537] Reading config file '/vercel/path0/drizzle.config.ts'
+[20:37:14.648] Error please install required packages: 'drizzle-orm'
+[20:37:14.673] Error: Command "npm run build" exited with 1
