@@ -1,0 +1,50 @@
+2025-09-07T20:23:16.889408913Z 🔗 Database connection: Available
+2025-09-07T20:23:33.285359703Z ✅ Database migrations completed successfully
+2025-09-07T20:23:33.28563224Z 🌐 Starting production server...
+2025-09-07T20:23:33.285655481Z 🔍 Environment check:
+2025-09-07T20:23:33.285667611Z    NODE_ENV: production
+2025-09-07T20:23:33.285675761Z    PORT: 10000
+2025-09-07T20:23:33.285804914Z    DATABASE_URL: Available
+2025-09-07T20:23:42.086076409Z 📁 Serving static files from: /opt/render/project/src/dist/public
+2025-09-07T20:23:42.08611232Z 
+2025-09-07T20:23:42.092202992Z Server running on port 10000
+2025-09-07T20:23:42.092220372Z 
+2025-09-07T20:23:42.092532611Z Frontend available at http://localhost:10000
+2025-09-07T20:23:42.092553211Z Environment: production
+2025-09-07T20:23:42.092559372Z 🗃️ Initializing database schema...
+2025-09-07T20:23:42.092564652Z 
+2025-09-07T20:23:46.45301957Z ==> Your service is live 🎉
+2025-09-07T20:23:46.482159168Z ==> 
+2025-09-07T20:23:46.513544955Z ==> ///////////////////////////////////////////////////////////
+2025-09-07T20:23:46.538547943Z ==> 
+2025-09-07T20:23:46.56348842Z ==> Available at your primary URL https://soyosoyosacco123.onrender.com
+2025-09-07T20:23:46.587008318Z No config path provided, using default 'drizzle.config.ts'
+2025-09-07T20:23:46.587036169Z 
+2025-09-07T20:23:46.587107621Z Reading config file '/opt/render/project/src/drizzle.config.ts'
+2025-09-07T20:23:46.587118651Z 
+2025-09-07T20:23:46.588937238Z ==> 
+2025-09-07T20:23:46.614861136Z ==> ///////////////////////////////////////////////////////////
+2025-09-07T20:23:52.994844859Z Using 'pg' driver for database querying
+2025-09-07T20:23:52.99486941Z 
+2025-09-07T20:23:55.592795768Z [⣷] Pulling schema from database...
+2025-09-07T20:23:55.592829208Z 
+2025-09-07T20:23:55.688109665Z Error: connect ENETUNREACH 2a05:d016:571:a40c:9b22:93f:fc0d:8b0b:5432 - Local (:::0)
+2025-09-07T20:23:55.688141546Z     at /opt/render/project/src/node_modules/pg-pool/index.js:45:11
+2025-09-07T20:23:55.688146406Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-07T20:23:55.688150576Z     at async Object.query (/opt/render/project/src/node_modules/drizzle-kit/bin.cjs:80601:26)
+2025-09-07T20:23:55.688155746Z     at async fromDatabase2 (/opt/render/project/src/node_modules/drizzle-kit/bin.cjs:19253:25) {
+2025-09-07T20:23:55.688159926Z   errno: -101,
+2025-09-07T20:23:55.688164506Z   code: 'ENETUNREACH',
+2025-09-07T20:23:55.688168286Z   syscall: 'connect',
+2025-09-07T20:23:55.688173197Z   address: '2a05:d016:571:a40c:9b22:93f:fc0d:8b0b',
+2025-09-07T20:23:55.688176867Z   port: 5432
+2025-09-07T20:23:55.688180657Z }
+2025-09-07T20:23:55.688184377Z 
+2025-09-07T20:23:55.888284424Z ✅ Database schema updated!
+2025-09-07T20:23:55.888304054Z 
+2025-09-07T20:24:00.891974413Z 🔄 Starting background asset preloading...
+2025-09-07T20:24:00.892004464Z 
+2025-09-07T20:24:00.892206739Z DEBUG: Skipping asset preloading to conserve OpenAI quota
+2025-09-07T20:24:00.89221448Z 
+2025-09-07T20:24:46.355310621Z 🛑 Received SIGTERM, shutting down gracefully
+2025-09-07T20:24:46.355828848Z ❌ Server exited with code null
