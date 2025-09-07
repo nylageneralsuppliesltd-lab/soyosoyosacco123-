@@ -1,0 +1,30 @@
+[20:31:31.551] Running build in Washington, D.C., USA (East) – iad1
+[20:31:31.551] Build machine configuration: 2 cores, 8 GB
+[20:31:31.584] Cloning github.com/nylageneralsuppliesltd-lab/soyosoyosacco123- (Branch: main, Commit: 6bdcf8f)
+[20:31:31.715] Previous build caches not available
+[20:31:31.975] Cloning completed: 391.000ms
+[20:31:32.336] Running "vercel build"
+[20:31:32.752] Vercel CLI 47.0.5
+[20:31:34.344] Running "install" command: `npm install`...
+[20:31:38.323] npm warn deprecated gm@1.25.1: The gm module has been sunset. Please migrate to an alternative. https://github.com/aheckmann/gm?tab=readme-ov-file#2025-02-24-this-project-is-not-maintained
+[20:31:43.667] 
+[20:31:43.668] added 429 packages, and audited 430 packages in 9s
+[20:31:43.669] 
+[20:31:43.669] 55 packages are looking for funding
+[20:31:43.670]   run `npm fund` for details
+[20:31:43.670] 
+[20:31:43.670] found 0 vulnerabilities
+[20:31:44.934] npm warn exec The following package was not found and will be installed: vite@7.1.4
+[20:31:54.376] [31mfailed to load config from /vercel/path0/vite.config.simple.js[39m
+[20:31:54.377] [31merror during build:
+[20:31:54.377] Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite' imported from /vercel/path0/node_modules/.vite-temp/vite.config.simple.js.timestamp-1757266314372-8e4512bcf387a.mjs
+[20:31:54.377]     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:255:9)
+[20:31:54.377]     at packageResolve (node:internal/modules/esm/resolve:767:81)
+[20:31:54.377]     at moduleResolve (node:internal/modules/esm/resolve:853:18)
+[20:31:54.377]     at defaultResolve (node:internal/modules/esm/resolve:983:11)
+[20:31:54.377]     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:783:12)
+[20:31:54.377]     at #cachedDefaultResolve (node:internal/modules/esm/loader:707:25)
+[20:31:54.377]     at ModuleLoader.resolve (node:internal/modules/esm/loader:690:38)
+[20:31:54.377]     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:307:38)
+[20:31:54.377]     at ModuleJob._link (node:internal/modules/esm/module_job:183:49)[39m
+[20:31:54.401] Error: Command "npx vite build --config vite.config.simple.js" exited with 1
