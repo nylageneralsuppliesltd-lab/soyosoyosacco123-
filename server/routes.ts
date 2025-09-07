@@ -127,7 +127,28 @@ export async function registerRoutes(app: express.Express) {
       });
     } catch (error) {
       console.error("Stats error:", error);
-      res.status(500).json({ error: "Failed to fetch stats" });
+      res.status(500).json({ 
+        error: "Failed to fetch stats",
+        details: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
+  });
+
+  router.get("/api/debug", async (req, res) => {
+    try {
+      res.json({
+        environment: process.env.NODE_ENV,
+        hasDatabase: !!process.env.DATABASE_URL,
+        databaseHost: process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : null,
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: "Debug failed", 
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
