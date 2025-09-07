@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Runtime initialization script for database setup
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 console.log('🗃️ Initializing database schema...');
 
@@ -15,7 +15,7 @@ try {
     console.log('⚠️ DATABASE_URL not found, skipping schema push');
   }
 } catch (error) {
-  console.error('❌ Database initialization failed:', error.message);
+  console.error('❌ Database initialization failed:', error instanceof Error ? error.message : String(error));
   // Don't exit with error - let the app start anyway
   console.log('🔄 Continuing with app startup...');
 }

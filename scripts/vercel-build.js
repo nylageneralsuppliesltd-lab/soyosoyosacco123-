@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Vercel-specific build script that excludes database operations
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 console.log('🚀 Starting Vercel build process...');
 
@@ -16,6 +16,6 @@ try {
   
   console.log('✅ Build completed successfully!');
 } catch (error) {
-  console.error('❌ Build failed:', error.message);
+  console.error('❌ Build failed:', error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
