@@ -1,6 +1,9 @@
 import { analyzeFileContent } from "./openai";
 import { fromBuffer } from "pdf2pic";
 import Tesseract from "tesseract.js";
+import { db } from "../storage";
+import { uploadedFiles } from "../../shared/schema";
+import { eq } from "drizzle-orm";
 
 export async function processUploadedFile(
   fileBuffer: Buffer,
@@ -13,6 +16,10 @@ export async function processUploadedFile(
       return await processTextFile(fileBuffer, fileName, mimeType);
     } else if (mimeType === "application/pdf") {
       return await processPdfFile(fileBuffer, fileName, mimeType);
+    } else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || mimeType === "application/msword") {
+      return await processWordDocument(fileBuffer, fileName, mimeType);
+    } else if (mimeType.startsWith("image/")) {
+      return await processImageFile(fileBuffer, fileName, mimeType);
     } else {
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
@@ -33,7 +40,7 @@ async function processPdfFile(
   try {
     console.log(`DEBUG: Processing PDF: ${fileName} using pdfjs-dist...`);
     const pdfjsModule = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const pdfjs = pdfjsModule.default || pdfjsModule;
+    const pdfjs = pdfjsModule;
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(fileBuffer),
       verbosity: 0,
@@ -56,9 +63,11 @@ async function processPdfFile(
       const output = await fromBuffer(fileBuffer, { format: "png", density: 100 }).bulk(-1);
       let ocrText = "";
       for (const page of output) {
-        const imageBuffer = page.buffer;
-        const { data: { text } } = await Tesseract.recognize(imageBuffer, "eng");
-        ocrText += `\n\n=== Page ${page.page} ===\n\n${text}`;
+        if ('buffer' in page) {
+          const imageBuffer = page.buffer;
+          const { data: { text } } = await Tesseract.recognize(imageBuffer, "eng");
+          ocrText += `\n\n=== Page ${page.page} ===\n\n${text}`;
+        }
       }
       extractedText = ocrText.trim();
       if (!extractedText || extractedText.length < 50) {
@@ -91,6 +100,61 @@ async function processTextFile(
     return { extractedText: content, analysis };
   } catch (error) {
     throw new Error(`Failed to process text file: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+}
+
+async function processWordDocument(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType: string
+): Promise<{ extractedText: string; analysis: string }> {
+  try {
+    // For now, return a message indicating Word processing is being implemented
+    return {
+      extractedText: `Word document uploaded: ${fileName}. Text extraction for Word documents is being processed...`,
+      analysis: `Word document detected: ${fileName}. Please convert to PDF or text format for full text extraction.`
+    };
+  } catch (error) {
+    console.error(`Word document processing failed for ${fileName}:`, error);
+    return {
+      extractedText: `Could not extract text from Word document: ${fileName}.`,
+      analysis: `Error processing Word document: ${error instanceof Error ? error.message : "Unknown error"}`
+    };
+  }
+}
+
+async function processImageFile(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType: string
+): Promise<{ extractedText: string; analysis: string }> {
+  try {
+    console.log(`DEBUG: Processing image: ${fileName} with OCR...`);
+    
+    const { data: { text } } = await Tesseract.recognize(fileBuffer, "eng", {
+      logger: m => console.log(`OCR Progress: ${m.progress}`)
+    });
+    
+    const extractedText = text.trim();
+    
+    if (!extractedText || extractedText.length < 10) {
+      return {
+        extractedText: `Image uploaded: ${fileName}. No readable text detected.`,
+        analysis: `Image processed: ${fileName}. No text content found through OCR.`
+      };
+    }
+    
+    console.log(`DEBUG: Extracted ${extractedText.length} characters from image ${fileName}`);
+    const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
+    const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
+    
+    return { extractedText, analysis };
+  } catch (error) {
+    console.error(`Image processing failed for ${fileName}:`, error);
+    return {
+      extractedText: `Could not extract text from image: ${fileName}.`,
+      analysis: `Error processing image: ${error instanceof Error ? error.message : "Unknown error"}`
+    };
   }
 }
 
