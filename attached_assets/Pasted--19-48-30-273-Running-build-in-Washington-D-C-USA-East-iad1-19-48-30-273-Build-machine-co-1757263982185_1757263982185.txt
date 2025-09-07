@@ -1,0 +1,43 @@
+[19:48:30.273] Running build in Washington, D.C., USA (East) – iad1
+[19:48:30.273] Build machine configuration: 2 cores, 8 GB
+[19:48:30.305] Cloning github.com/nylageneralsuppliesltd-lab/soyosoyosacco123- (Branch: main, Commit: 14e07c2)
+[19:48:30.475] Previous build caches not available
+[19:48:30.757] Cloning completed: 451.000ms
+[19:48:31.093] Running "vercel build"
+[19:48:31.489] Vercel CLI 47.0.5
+[19:48:31.666] WARN! Due to `builds` existing in your configuration file, the Build and Development Settings defined in your Project Settings will not apply. Learn More: https://vercel.link/unused-build-settings
+[19:48:32.111] Installing dependencies...
+[19:48:36.589] npm warn deprecated gm@1.25.1: The gm module has been sunset. Please migrate to an alternative. https://github.com/aheckmann/gm?tab=readme-ov-file#2025-02-24-this-project-is-not-maintained
+[19:48:37.073] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[19:48:37.093] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[19:48:43.330] 
+[19:48:43.331] added 532 packages in 11s
+[19:48:43.331] 
+[19:48:43.331] 70 packages are looking for funding
+[19:48:43.332]   run `npm fund` for details
+[19:48:43.400] Running "npm run build"
+[19:48:43.512] 
+[19:48:43.512] > rest-express@1.0.0 build
+[19:48:43.512] > npm install && npm audit fix && npx drizzle-kit push && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+[19:48:43.512] 
+[19:48:44.548] 
+[19:48:44.549] up to date, audited 430 packages in 973ms
+[19:48:44.550] 
+[19:48:44.550] 55 packages are looking for funding
+[19:48:44.550]   run `npm fund` for details
+[19:48:44.550] 
+[19:48:44.551] found 0 vulnerabilities
+[19:48:45.604] 
+[19:48:45.605] up to date, audited 430 packages in 989ms
+[19:48:45.605] 
+[19:48:45.606] 55 packages are looking for funding
+[19:48:45.606]   run `npm fund` for details
+[19:48:45.606] 
+[19:48:45.606] found 0 vulnerabilities
+[19:48:46.266] npm warn exec The following package was not found and will be installed: drizzle-kit@0.31.4
+[19:48:48.365] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[19:48:48.371] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[19:48:49.022] No config path provided, using default 'drizzle.config.ts'
+[19:48:49.023] Reading config file '/vercel/path0/drizzle.config.ts'
+[19:48:49.129] Error please install required packages: 'drizzle-orm'
+[19:48:49.156] Error: Command "npm run build" exited with 1

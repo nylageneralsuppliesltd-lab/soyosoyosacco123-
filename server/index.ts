@@ -90,10 +90,23 @@ registerRoutes(app).then(async () => {
   }
   
   const PORT = Number(process.env.PORT) || 5000;
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Frontend available at http://localhost:${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+    
+    // Initialize database schema in production
+    if (process.env.NODE_ENV === "production" && process.env.DATABASE_URL) {
+      try {
+        console.log("🗃️ Initializing database schema...");
+        const { execSync } = await import("child_process");
+        execSync('npx drizzle-kit push', { stdio: 'inherit' });
+        console.log("✅ Database schema updated!");
+      } catch (error) {
+        console.error("❌ Database initialization failed:", error instanceof Error ? error.message : String(error));
+        console.log("🔄 Continuing with app startup...");
+      }
+    }
     
     // Preload assets after server is started to avoid blocking health checks
     if (process.env.NODE_ENV !== "production") {
