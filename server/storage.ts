@@ -17,13 +17,19 @@ import {
 import { eq } from "drizzle-orm";
 
 // Initialize database - compatible with both Neon and Supabase
+// Parse DATABASE_URL to force IPv4 connection for Render compatibility
+const dbUrl = new URL(process.env.DATABASE_URL!);
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL!,
+  host: dbUrl.hostname,
+  port: parseInt(dbUrl.port) || 5432,
+  database: dbUrl.pathname.slice(1), // Remove leading slash
+  user: dbUrl.username,
+  password: dbUrl.password,
   ssl: {
     rejectUnauthorized: false
   },
-  // Force IPv4 to fix Render connectivity issues
-  host: process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : undefined,
+  // Force IPv4 addressing
+  family: 4,
   // Additional settings for better compatibility
   max: 20,
   idleTimeoutMillis: 30000,
