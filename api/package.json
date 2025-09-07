@@ -1,0 +1,9 @@
+{
+  "name": "soyosoyo-sacco-api",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.39.1"
+  }
+}

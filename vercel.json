@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npm install --production",
-  "buildCommand": "",
   "functions": {
-    "api/*.ts": {
+    "api/index.ts": {
       "runtime": "@vercel/node@3.1.4"
     }
   },
@@ -15,10 +13,6 @@
     {
       "src": "/google-sites-svg-embed.html",
       "dest": "/api/index.ts"
-    },
-    {
-      "src": "/(.*\\.(js|css|png|jpg|svg|ico))",
-      "dest": "/public/$1"
     },
     {
       "src": "/(.*)",
