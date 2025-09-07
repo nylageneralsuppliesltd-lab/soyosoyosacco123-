@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npx vite build --config vite.config.simple.js",
-  "outputDirectory": "dist/public",
   "routes": [
     {
       "src": "/api/(.*)",
@@ -13,7 +11,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/dist/public/index.html"
+      "dest": "/api/index.ts"
     }
   ]
 }
