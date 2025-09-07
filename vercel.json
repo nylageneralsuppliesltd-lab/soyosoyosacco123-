@@ -1,7 +1,12 @@
 {
   "version": 2,
-  "installCommand": "npm install",
-  "buildCommand": "echo 'No build needed - using serverless functions'",
+  "installCommand": "npm install --production",
+  "buildCommand": "",
+  "functions": {
+    "api/*.ts": {
+      "runtime": "@vercel/node@3.1.4"
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",
