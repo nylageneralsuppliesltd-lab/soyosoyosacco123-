@@ -17,23 +17,34 @@ import {
 import { eq } from "drizzle-orm";
 
 // Initialize database - compatible with both Neon and Supabase
-// Parse DATABASE_URL to force IPv4 connection for Render compatibility
-const dbUrl = new URL(process.env.DATABASE_URL!);
+// AGGRESSIVE IPv4 WORKAROUND for Render connectivity issues
+let connectionString = process.env.DATABASE_URL!;
+
+// Force Supabase to use transaction pooler (IPv4-friendly)
+if (connectionString.includes('supabase.co') && process.env.NODE_ENV === 'production') {
+  // Use transaction pooler: pooler.*.supabase.co:6543
+  connectionString = connectionString.replace('postgresql://', 'postgresql://');
+  connectionString = connectionString.replace('db.', 'pooler.');
+  connectionString = connectionString.replace(':5432', ':6543');
+  // Add pool mode for transaction pooling
+  connectionString += connectionString.includes('?') ? '&pgbouncer=true' : '?pgbouncer=true';
+}
+
+console.log('Database config:', {
+  env: process.env.NODE_ENV,
+  hasUrl: !!process.env.DATABASE_URL,
+  host: process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'none',
+  finalConnection: connectionString.replace(/:[^:]*@/, ':****@')
+});
+
 const pool = new Pool({
-  host: dbUrl.hostname,
-  port: parseInt(dbUrl.port) || 5432,
-  database: dbUrl.pathname.slice(1), // Remove leading slash
-  user: dbUrl.username,
-  password: dbUrl.password,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  // Force IPv4 addressing
-  family: 4,
-  // Additional settings for better compatibility
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionString,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Force IPv4 and aggressive timeouts
+  options: process.env.NODE_ENV === 'production' ? '-c default_transaction_isolation=read_committed' : undefined,
+  max: 5, // Smaller pool for transaction mode
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 8000,
 });
 export const db = drizzle(pool);
 
