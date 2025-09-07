@@ -19,7 +19,13 @@ import { eq } from "drizzle-orm";
 // Initialize database - compatible with both Neon and Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: {
+    rejectUnauthorized: false
+  },
+  // Additional settings for better compatibility
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 export const db = drizzle(pool);
 
