@@ -1,17 +1,11 @@
 {
   "version": 2,
-  "installCommand": "npm install",
-  "buildCommand": "node scripts/build-simple.js",
+  "buildCommand": "npx vite build --config vite.config.simple.js",
   "outputDirectory": "dist/public",
-  "functions": {
-    "dist/index.js": {
-      "runtime": "@vercel/node@3.1.4"
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/dist/index.js"
+      "dest": "/api/index.ts"
     },
     {
       "src": "/(.*\\.(js|css|png|jpg|svg|html))",
