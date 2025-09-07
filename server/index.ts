@@ -40,7 +40,9 @@ app.use(express.static(path.resolve(__dirname, '..', 'public')));
 
 const server = createServer(app);
 
-registerRoutes(app).then(async () => {
+async function initializeServer() {
+  await registerRoutes(app);
+  
   // Setup Vite development server or static file serving based on environment
   if (process.env.NODE_ENV === "production") {
     // Serve static files for production
@@ -120,4 +122,10 @@ registerRoutes(app).then(async () => {
       }, 5000);
     }
   });
+}
+
+// Initialize the server
+initializeServer().catch((error) => {
+  console.error("Failed to initialize server:", error);
+  process.exit(1);
 });

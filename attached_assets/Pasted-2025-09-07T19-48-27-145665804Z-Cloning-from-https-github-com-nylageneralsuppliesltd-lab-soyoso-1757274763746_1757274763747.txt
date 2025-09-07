@@ -1,0 +1,75 @@
+2025-09-07T19:48:27.145665804Z ==> Cloning from https://github.com/nylageneralsuppliesltd-lab/soyosoyosacco123-
+2025-09-07T19:48:27.755734676Z ==> Checking out commit 8e8e7d0b08c1f63577532f86742ab3db3ccc4dce in branch main
+2025-09-07T19:48:30.220204291Z ==> Using Node.js version 22.16.0 (default)
+2025-09-07T19:48:30.246213552Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-09-07T19:48:32.269467337Z ==> Running build command 'node build.js'...
+2025-09-07T19:48:32.311794395Z 🔧 Starting deployment-safe build process...
+2025-09-07T19:48:32.311974484Z 📦 Installing dependencies...
+2025-09-07T19:48:43.69152728Z ✅ Dependencies installed
+2025-09-07T19:48:43.715175673Z 🎨 Building frontend with Vite...
+2025-09-07T19:48:47.815197065Z ✅ Frontend built successfully
+2025-09-07T19:48:47.815245447Z 🏗️ Building backend with esbuild...
+2025-09-07T19:48:47.828457588Z ✅ Backend built successfully
+2025-09-07T19:48:47.829437287Z ✨ Build completed successfully!
+2025-09-07T19:48:47.829486579Z 📝 Note: Database operations will run at startup when DATABASE_URL is available
+2025-09-07T19:48:47.829738962Z 🔒 Build process completed without requiring DATABASE_URL or audit operations
+2025-09-07T19:48:48.473076092Z ==> Uploading build...
+2025-09-07T19:49:02.85300318Z ==> Uploaded in 6.6s. Compression took 7.8s
+2025-09-07T19:49:03.10587273Z ==> Build successful 🎉
+2025-09-07T19:49:26.109087932Z ==> Deploying...
+2025-09-07T19:49:47.936042302Z ==> Running 'node start.js'
+2025-09-07T19:49:48.235987555Z 🚀 Starting production deployment...
+2025-09-07T19:49:48.321478953Z 📂 Frontend build contents:
+2025-09-07T19:49:48.322010287Z    assets
+2025-09-07T19:49:48.322052448Z    index.html
+2025-09-07T19:49:48.32215225Z    assets/index-Ctv8RmPA.css
+2025-09-07T19:49:48.322218632Z    assets/index-U8x7yuRD.js
+2025-09-07T19:49:48.324529262Z 🗄️ Running database migrations...
+2025-09-07T19:49:48.324541332Z 🔗 Database connection: Available
+2025-09-07T19:50:03.329793322Z ✅ Database migrations completed successfully
+2025-09-07T19:50:03.329982956Z 🌐 Starting production server...
+2025-09-07T19:50:03.330009397Z 🔍 Environment check:
+2025-09-07T19:50:03.330076029Z    NODE_ENV: production
+2025-09-07T19:50:03.330085239Z    PORT: 10000
+2025-09-07T19:50:03.330160881Z    DATABASE_URL: Available
+2025-09-07T19:50:11.921965022Z 📁 Serving static files from: /opt/render/project/src/dist/public
+2025-09-07T19:50:11.921992072Z 
+2025-09-07T19:50:11.92774958Z Server running on port 10000
+2025-09-07T19:50:11.927763561Z 
+2025-09-07T19:50:11.927859263Z Frontend available at http://localhost:10000
+2025-09-07T19:50:11.927873694Z Environment: production
+2025-09-07T19:50:11.927878854Z 🗃️ Initializing database schema...
+2025-09-07T19:50:11.927883294Z 
+2025-09-07T19:50:15.927659834Z No config path provided, using default 'drizzle.config.ts'
+2025-09-07T19:50:15.927681465Z 
+2025-09-07T19:50:15.928148367Z Reading config file '/opt/render/project/src/drizzle.config.ts'
+2025-09-07T19:50:15.928170877Z 
+2025-09-07T19:50:16.920870009Z ==> Your service is live 🎉
+2025-09-07T19:50:16.948875566Z ==> 
+2025-09-07T19:50:16.976423404Z ==> ///////////////////////////////////////////////////////////
+2025-09-07T19:50:17.002238312Z ==> 
+2025-09-07T19:50:17.027510929Z ==> Available at your primary URL https://soyosoyosacco123.onrender.com
+2025-09-07T19:50:17.052513187Z ==> 
+2025-09-07T19:50:17.079374715Z ==> ///////////////////////////////////////////////////////////
+2025-09-07T19:50:22.129755357Z Using 'pg' driver for database querying
+2025-09-07T19:50:22.129779507Z 
+2025-09-07T19:50:25.627505767Z [⣷] Pulling schema from database...
+2025-09-07T19:50:25.627526348Z 
+2025-09-07T19:50:25.725528277Z Error: connect ENETUNREACH 2a05:d016:571:a40c:9b22:93f:fc0d:8b0b:5432 - Local (:::0)
+2025-09-07T19:50:25.725554258Z     at /opt/render/project/src/node_modules/pg-pool/index.js:45:11
+2025-09-07T19:50:25.725558548Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-07T19:50:25.725562658Z     at async Object.query (/opt/render/project/src/node_modules/drizzle-kit/bin.cjs:80601:26)
+2025-09-07T19:50:25.725568488Z     at async fromDatabase2 (/opt/render/project/src/node_modules/drizzle-kit/bin.cjs:19253:25) {
+2025-09-07T19:50:25.725572718Z   errno: -101,
+2025-09-07T19:50:25.725577218Z   code: 'ENETUNREACH',
+2025-09-07T19:50:25.725581318Z   syscall: 'connect',
+2025-09-07T19:50:25.725588069Z   address: '2a05:d016:571:a40c:9b22:93f:fc0d:8b0b',
+2025-09-07T19:50:25.725592019Z   port: 5432
+2025-09-07T19:50:25.725595599Z }
+2025-09-07T19:50:25.725599189Z 
+2025-09-07T19:50:25.928546997Z ✅ Database schema updated!
+2025-09-07T19:50:25.928566157Z 
+2025-09-07T19:50:30.932720738Z 🔄 Starting background asset preloading...
+2025-09-07T19:50:30.932736509Z 
+2025-09-07T19:50:30.932825431Z DEBUG: Skipping asset preloading to conserve OpenAI quota
+2025-09-07T19:50:30.932831021Z 
