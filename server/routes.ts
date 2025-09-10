@@ -253,6 +253,7 @@ export async function registerRoutes(app: express.Express) {
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
+        statusCode: 200,
         responseTime: 0, // We don't track this for images yet
         success: true,
         metadata: { prompt, conversationId, imageUrl }
@@ -270,6 +271,7 @@ export async function registerRoutes(app: express.Express) {
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
+        statusCode: 500,
         responseTime: 0,
         success: false,
         metadata: { prompt: req.body.prompt, error: error instanceof Error ? error.message : "Unknown error" }
