@@ -237,6 +237,51 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  router.post("/api/generate-image", async (req, res) => {
+    try {
+      const { prompt, conversationId } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: "Image prompt is required" });
+      }
+
+      // Generate image using OpenAI DALL-E
+      const { generateImage } = await import("./services/openai");
+      const imageUrl = await generateImage(prompt, conversationId);
+      
+      // Log the image generation
+      await storage.createApiLog({
+        endpoint: "/api/generate-image",
+        method: "POST",
+        responseTime: 0, // We don't track this for images yet
+        success: true,
+        metadata: { prompt, conversationId, imageUrl }
+      });
+
+      res.json({
+        imageUrl,
+        prompt,
+        success: true
+      });
+    } catch (error) {
+      console.error("Image generation error:", error);
+      
+      // Log the failed image generation
+      await storage.createApiLog({
+        endpoint: "/api/generate-image",
+        method: "POST",
+        responseTime: 0,
+        success: false,
+        metadata: { prompt: req.body.prompt, error: error instanceof Error ? error.message : "Unknown error" }
+      });
+      
+      res.status(500).json({ 
+        error: "Failed to generate image",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   app.use("/", router);
   return app;
 }
