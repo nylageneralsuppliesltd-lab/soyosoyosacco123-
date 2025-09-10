@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageCircle, Send, X, Minimize2 } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Camera } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -33,6 +33,7 @@ export function EmbedChat({ apiBaseUrl = "" }: EmbedChatProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isImageMode, setIsImageMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -103,9 +104,73 @@ export function EmbedChat({ apiBaseUrl = "" }: EmbedChatProps) {
     }
   };
 
+  const generateImage = async (prompt: string) => {
+    if (!prompt.trim()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/generate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          prompt, 
+          conversationId: conversationId || undefined
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to generate image");
+      }
+      
+      const data = await response.json();
+      
+      setMessages(prev => [...prev, 
+        {
+          id: Date.now().toString(),
+          content: `🎨 Generate image: ${prompt}`,
+          role: "user",
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          content: `🖼️ **Generated Image** 📸\n\n![Generated image](${data.imageUrl})\n\n*Prompt: ${data.prompt}*`,
+          role: "assistant",
+          timestamp: new Date()
+        }
+      ]);
+      
+    } catch (error) {
+      console.error("Image generation error:", error);
+      setMessages(prev => [...prev, 
+        {
+          id: Date.now().toString(),
+          content: `🎨 Generate image: ${prompt}`,
+          role: "user",
+          timestamp: new Date()
+        },
+        {
+          id: "error-" + Date.now(),
+          content: "I'm sorry, I couldn't generate the image right now. Please try again later.",
+          role: "assistant",
+          timestamp: new Date()
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
+      setInputMessage("");
+      setIsImageMode(false);
+    }
+  };
+
   const handleSendMessage = () => {
     if (!inputMessage.trim() || isLoading) return;
-    sendMessage(inputMessage);
+    
+    if (isImageMode) {
+      generateImage(inputMessage);
+    } else {
+      sendMessage(inputMessage);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -340,39 +405,72 @@ export function EmbedChat({ apiBaseUrl = "" }: EmbedChatProps) {
             </CardContent>
             
             <CardFooter style={{ padding: "16px" }}>
-              <div style={{ display: "flex", width: "100%", gap: "8px" }}>
-                <Input
-                  placeholder="Ask about loans, savings, membership..."
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={isLoading}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || isLoading}
-                  style={{
-                    backgroundColor: "#22c55e",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    cursor: inputMessage.trim() && !isLoading ? "pointer" : "not-allowed",
-                    opacity: inputMessage.trim() && !isLoading ? 1 : 0.5
-                  }}
-                  onMouseOver={(e) => {
-                    if (inputMessage.trim() && !isLoading) {
-                      e.currentTarget.style.backgroundColor = "#16a34a";
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (inputMessage.trim() && !isLoading) {
-                      e.currentTarget.style.backgroundColor = "#22c55e";
-                    }
-                  }}
-                >
-                  <Send style={{ width: "16px", height: "16px" }} />
-                </Button>
+              <div style={{ display: "flex", width: "100%", gap: "8px", flexDirection: "column" }}>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Input
+                    placeholder={isImageMode ? "Describe the image you want to generate..." : "Ask about loans, savings, membership..."}
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={isLoading}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    onClick={() => setIsImageMode(!isImageMode)}
+                    style={{
+                      backgroundColor: isImageMode ? "#8b5cf6" : "transparent",
+                      border: isImageMode ? "none" : "2px solid #d1d5db",
+                      borderRadius: "8px",
+                      padding: "8px 12px",
+                      cursor: "pointer"
+                    }}
+                    onMouseOver={(e) => {
+                      if (isImageMode) {
+                        e.currentTarget.style.backgroundColor = "#7c3aed";
+                      } else {
+                        e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (isImageMode) {
+                        e.currentTarget.style.backgroundColor = "#8b5cf6";
+                      } else {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }
+                    }}
+                  >
+                    <Camera style={{ width: "16px", height: "16px", color: isImageMode ? "white" : "#6b7280" }} />
+                  </Button>
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim() || isLoading}
+                    style={{
+                      backgroundColor: "#22c55e",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 12px",
+                      cursor: inputMessage.trim() && !isLoading ? "pointer" : "not-allowed",
+                      opacity: inputMessage.trim() && !isLoading ? 1 : 0.5
+                    }}
+                    onMouseOver={(e) => {
+                      if (inputMessage.trim() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#16a34a";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (inputMessage.trim() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#22c55e";
+                      }
+                    }}
+                  >
+                    <Send style={{ width: "16px", height: "16px" }} />
+                  </Button>
+                </div>
+                {isImageMode && (
+                  <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+                    🎨 Image mode - Click camera again to switch back to chat
+                  </p>
+                )}
               </div>
             </CardFooter>
           </>

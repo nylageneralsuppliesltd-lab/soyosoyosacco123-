@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageCircle, Send, X, Minimize2 } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Camera } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
@@ -36,6 +36,7 @@ export function ChatWidget() {
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isImageMode, setIsImageMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -80,13 +81,54 @@ export function ChatWidget() {
     }
   });
 
+  const imageMutation = useMutation({
+    mutationFn: async ({ prompt, conversationId }: { prompt: string; conversationId?: string }) => {
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, conversationId })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to generate image");
+      }
+      
+      return response.json() as Promise<{ imageUrl: string; prompt: string; success: boolean }>;
+    },
+    onSuccess: (data, variables) => {
+      setMessages(prev => [...prev, 
+        {
+          id: Date.now().toString(),
+          content: `🎨 Generate image: ${variables.prompt}`,
+          role: "user",
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          content: `🖼️ **Generated Image** 📸\n\n![Generated image](${data.imageUrl})\n\n*Prompt: ${data.prompt}*`,
+          role: "assistant", 
+          timestamp: new Date()
+        }
+      ]);
+      setInputMessage("");
+      setIsImageMode(false);
+    }
+  });
+
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
     
-    chatMutation.mutate({
-      message: inputMessage,
-      conversationId: conversationId || undefined
-    });
+    if (isImageMode) {
+      imageMutation.mutate({
+        prompt: inputMessage,
+        conversationId: conversationId || undefined
+      });
+    } else {
+      chatMutation.mutate({
+        message: inputMessage,
+        conversationId: conversationId || undefined
+      });
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -232,7 +274,7 @@ export function ChatWidget() {
                       </div>
                     </div>
                   ))}
-                  {chatMutation.isPending && (
+                  {(chatMutation.isPending || imageMutation.isPending) && (
                     <div className="flex justify-start">
                       <div className="flex items-start gap-2 max-w-[75%]">
                         <Avatar className="w-6 h-6">
@@ -246,6 +288,9 @@ export function ChatWidget() {
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
                           </div>
+                          {imageMutation.isPending && (
+                            <p className="mt-2 text-xs text-gray-600">🎨 Generating image...</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -257,17 +302,30 @@ export function ChatWidget() {
             
             <CardFooter className="p-4">
               <div className="flex w-full gap-2">
-                <Input
-                  placeholder="Ask about loans, savings, membership..."
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={chatMutation.isPending}
-                  className="flex-1"
-                />
+                <div className="flex-1">
+                  <Input
+                    placeholder={isImageMode ? "Describe the image you want to generate..." : "Ask about loans, savings, membership..."}
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={chatMutation.isPending || imageMutation.isPending}
+                    className="w-full"
+                  />
+                  {isImageMode && (
+                    <p className="text-xs text-gray-500 mt-1">🎨 Image mode - Click camera again to switch back to chat</p>
+                  )}
+                </div>
+                <Button
+                  onClick={() => setIsImageMode(!isImageMode)}
+                  variant={isImageMode ? "default" : "outline"}
+                  size="sm"
+                  className={isImageMode ? "bg-purple-500 hover:bg-purple-600" : ""}
+                >
+                  <Camera className="w-4 h-4" />
+                </Button>
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || chatMutation.isPending}
+                  disabled={!inputMessage.trim() || chatMutation.isPending || imageMutation.isPending}
                   className="bg-green-500 hover:bg-green-600"
                   size="sm"
                 >
