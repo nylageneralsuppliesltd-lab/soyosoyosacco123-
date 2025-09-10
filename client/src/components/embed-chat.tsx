@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageCircle, Send, X, Minimize2 } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -276,7 +278,24 @@ export function EmbedChat({ apiBaseUrl = "" }: EmbedChatProps) {
                             margin: message.role === "user" ? "0 0 0 8px" : "0 8px 0 0"
                           }}
                         >
-                          {message.content}
+                          {message.role === "assistant" ? (
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
+                                strong: ({ children }) => <strong style={{ fontWeight: "bold", color: "#16a34a" }}>{children}</strong>,
+                                table: ({ children }) => <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #d1d5db", margin: "8px 0", fontSize: "12px" }}>{children}</table>,
+                                th: ({ children }) => <th style={{ border: "1px solid #d1d5db", padding: "4px 8px", backgroundColor: "#f9fafb", fontWeight: "600", textAlign: "left" }}>{children}</th>,
+                                td: ({ children }) => <td style={{ border: "1px solid #d1d5db", padding: "4px 8px" }}>{children}</td>,
+                                ul: ({ children }) => <ul style={{ listStyleType: "disc", paddingLeft: "16px", margin: "0 0 8px 0" }}>{children}</ul>,
+                                li: ({ children }) => <li style={{ marginBottom: "4px" }}>{children}</li>
+                              }}
+                            >
+                              {message.content}
+                            </ReactMarkdown>
+                          ) : (
+                            message.content
+                          )}
                         </div>
                       </div>
                     </div>

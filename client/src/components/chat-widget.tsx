@@ -7,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, Send, X, Minimize2 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -206,7 +208,26 @@ export function ChatWidget() {
                               : "bg-gray-100 text-gray-800 mr-2"
                           }`}
                         >
-                          {message.content}
+                          {message.role === "assistant" ? (
+                            <div className="prose prose-sm max-w-none">
+                              <ReactMarkdown 
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                  strong: ({ children }) => <strong className="font-bold text-green-700">{children}</strong>,
+                                  table: ({ children }) => <table className="w-full border-collapse border border-gray-300 my-2 text-xs">{children}</table>,
+                                  th: ({ children }) => <th className="border border-gray-300 px-2 py-1 bg-gray-50 font-semibold text-left">{children}</th>,
+                                  td: ({ children }) => <td className="border border-gray-300 px-2 py-1">{children}</td>,
+                                  ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                                  li: ({ children }) => <li className="mb-1">{children}</li>
+                                }}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            message.content
+                          )}
                         </div>
                       </div>
                     </div>

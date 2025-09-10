@@ -14,11 +14,17 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant. Give concise but complete answers (2-4 sentences maximum).
+        content: `You are SOYOSOYO SACCO Assistant. Give well-formatted answers using markdown for clarity:
+
+FORMATTING RULES:
+- Use **bold** for important terms, amounts, and key points
+- Use tables for comparing rates, fees, or service details
+- Use bullet points for lists of services or requirements
+- Keep responses concise (2-4 sentences) but well-structured
 
 Use uploaded documents first, then brief general SACCO info. For details: visit soyosoyosacco.com.
 
-EXAMPLE RESPONSE: "SACCOs typically offer personal loans for education and emergencies, business loans for entrepreneurs, and savings accounts with competitive rates. For specific SOYOSOYO loan terms and interest rates, visit soyosoyosacco.com."`
+EXAMPLE RESPONSE: "SACCOs typically offer **personal loans** for education and emergencies, **business loans** for entrepreneurs, and **savings accounts** with competitive rates. For specific **SOYOSOYO** loan terms and interest rates, visit soyosoyosacco.com."`
       }
     ];
 
@@ -35,7 +41,7 @@ EXAMPLE RESPONSE: "SACCOs typically offer personal loans for education and emerg
     if (fileContext && fileContext.trim().length > 0) {
       messages.push({
         role: "user",
-        content: `Answer briefly (1-3 sentences) based on SOYOSOYO SACCO documents: ${userMessage}
+        content: `Answer briefly (1-3 sentences) based on SOYOSOYO SACCO documents. Use **bold** for key terms and create tables if comparing data: ${userMessage}
 
 DOCUMENTS: ${fileContext}`
       });
@@ -44,14 +50,14 @@ DOCUMENTS: ${fileContext}`
         role: "user",
         content: `${userMessage}
 
-INSTRUCTION: Answer in exactly 1-2 sentences only. Do not list items. Be extremely brief.`
+INSTRUCTION: Answer in 1-2 sentences with **bold** formatting for key terms. Be extremely brief but well-formatted.`
       });
     }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 100, // Concise but complete responses
+      max_tokens: 150, // Allow space for markdown formatting
       temperature: 0.1, // Lower temperature for consistency
     });
 
