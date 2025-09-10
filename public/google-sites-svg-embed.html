@@ -516,6 +516,7 @@
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
+                this.isImageMode = false;
                 this.apiBaseUrl = 'https://soyosoyosacco-123-nylageneralsupp.replit.app';
                 
                 this.chatButton = document.getElementById('chatButton');
@@ -523,8 +524,10 @@
                 this.closeButton = document.getElementById('closeButton');
                 this.messageInput = document.getElementById('messageInput');
                 this.sendButton = document.getElementById('sendButton');
+                this.cameraButton = document.getElementById('cameraButton');
                 this.chatMessages = document.getElementById('chatMessages');
                 this.chatLabel = document.getElementById('chatLabel');
+                this.imageModeIndicator = document.getElementById('imageModeIndicator');
                 
                 this.setupEventListeners();
                 this.checkServerHealth();
@@ -539,6 +542,7 @@
                 this.chatButton.addEventListener('click', () => this.toggleChat());
                 this.closeButton.addEventListener('click', () => this.closeChat());
                 this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.cameraButton.addEventListener('click', () => this.toggleImageMode());
                 this.messageInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -584,6 +588,20 @@
                 }, 300);
             }
             
+            toggleImageMode() {
+                this.isImageMode = !this.isImageMode;
+                
+                if (this.isImageMode) {
+                    this.cameraButton.classList.add('active');
+                    this.imageModeIndicator.style.display = 'block';
+                    this.messageInput.placeholder = 'Describe the image you want to generate...';
+                } else {
+                    this.cameraButton.classList.remove('active');
+                    this.imageModeIndicator.style.display = 'none';
+                    this.messageInput.placeholder = 'Ask about loans, savings, membership, or any SACCO services...';
+                }
+            }
+            
             async sendMessage() {
                 const message = this.messageInput.value.trim();
                 if (!message || this.isLoading) return;
@@ -593,42 +611,80 @@
                 this.isLoading = true;
                 this.sendButton.disabled = true;
                 
-                this.addMessage(message, 'user');
-                this.showTypingIndicator();
-                
-                try {
-                    const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            message, 
-                            conversationId: this.conversationId,
-                            includeContext: true 
-                        }),
-                        signal: AbortSignal.timeout(30000)
-                    });
+                if (this.isImageMode) {
+                    this.addMessage(`🎨 Generate image: ${message}`, 'user');
+                    this.showTypingIndicator();
                     
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/api/generate-image`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                prompt: message,
+                                conversationId: this.conversationId
+                            }),
+                            signal: AbortSignal.timeout(60000)
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        this.hideTypingIndicator();
+                        
+                        if (data.imageUrl) {
+                            this.addMessage(`🖼️ **Generated Image** 📸\n\n![Generated image](${data.imageUrl})\n\n*Prompt: ${data.prompt}*`, 'assistant');
+                            this.conversationId = data.conversationId || this.conversationId;
+                        } else {
+                            throw new Error('No image URL in response');
+                        }
+                        
+                        this.isImageMode = false;
+                        this.toggleImageMode();
+                    } catch (error) {
+                        console.error('Image generation error:', error);
+                        this.hideTypingIndicator();
+                        this.addMessage("I'm having trouble generating images right now. Please try again in a moment.", 'assistant');
                     }
+                } else {
+                    this.addMessage(message, 'user');
+                    this.showTypingIndicator();
                     
-                    const data = await response.json();
-                    this.hideTypingIndicator();
-                    
-                    if (data.response) {
-                        this.addMessage(data.response, 'assistant');
-                        this.conversationId = data.conversationId;
-                    } else {
-                        throw new Error('Invalid response format from server');
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                message, 
+                                conversationId: this.conversationId,
+                                includeContext: true 
+                            }),
+                            signal: AbortSignal.timeout(30000)
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        this.hideTypingIndicator();
+                        
+                        if (data.response) {
+                            this.addMessage(data.response, 'assistant');
+                            this.conversationId = data.conversationId;
+                        } else {
+                            throw new Error('Invalid response format from server');
+                        }
+                    } catch (error) {
+                        console.error('Chat error:', error);
+                        this.hideTypingIndicator();
+                        this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
                     }
-                } catch (error) {
-                    console.error('Chat error:', error);
-                    this.hideTypingIndicator();
-                    this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
-                } finally {
-                    this.isLoading = false;
-                    this.sendButton.disabled = false;
                 }
+                
+                this.isLoading = false;
+                this.sendButton.disabled = false;
             }
             
             addMessage(content, role) {
@@ -653,7 +709,75 @@
                 
                 const bubbleDiv = document.createElement('div');
                 bubbleDiv.className = 'message-bubble';
-                bubbleDiv.textContent = content;
+                
+                // Parse markdown for rich formatting
+                if (typeof marked !== 'undefined' && role === 'assistant') {
+                    // Configure marked for safe HTML and better styling
+                    marked.setOptions({
+                        breaks: true,
+                        gfm: true
+                    });
+                    
+                    try {
+                        bubbleDiv.innerHTML = marked.parse(content);
+                        
+                        // Style the markdown elements
+                        const paragraphs = bubbleDiv.querySelectorAll('p');
+                        paragraphs.forEach((p, index) => {
+                            p.style.margin = index === paragraphs.length - 1 ? '0' : '0 0 8px 0';
+                        });
+                        
+                        const strong = bubbleDiv.querySelectorAll('strong');
+                        strong.forEach(s => {
+                            s.style.fontWeight = 'bold';
+                            s.style.color = '#1e7b85';
+                        });
+                        
+                        const tables = bubbleDiv.querySelectorAll('table');
+                        tables.forEach(table => {
+                            table.style.borderCollapse = 'collapse';
+                            table.style.width = '100%';
+                            table.style.marginTop = '8px';
+                        });
+                        
+                        const tableCells = bubbleDiv.querySelectorAll('td, th');
+                        tableCells.forEach(cell => {
+                            cell.style.border = '1px solid #e5e7eb';
+                            cell.style.padding = '6px 8px';
+                        });
+                        
+                        const tableHeaders = bubbleDiv.querySelectorAll('th');
+                        tableHeaders.forEach(th => {
+                            th.style.backgroundColor = '#f8f9fa';
+                            th.style.fontWeight = 'bold';
+                        });
+                        
+                        const images = bubbleDiv.querySelectorAll('img');
+                        images.forEach(img => {
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.style.borderRadius = '8px';
+                            img.style.marginTop = '8px';
+                        });
+                        
+                        const lists = bubbleDiv.querySelectorAll('ul, ol');
+                        lists.forEach(list => {
+                            list.style.paddingLeft = '20px';
+                            list.style.margin = '8px 0';
+                        });
+                        
+                        const listItems = bubbleDiv.querySelectorAll('li');
+                        listItems.forEach(li => {
+                            li.style.marginBottom = '4px';
+                        });
+                        
+                    } catch (error) {
+                        console.error('Markdown parsing error:', error);
+                        bubbleDiv.textContent = content;
+                    }
+                } else {
+                    bubbleDiv.textContent = content;
+                }
                 
                 messageDiv.appendChild(avatarDiv);
                 messageDiv.appendChild(bubbleDiv);
