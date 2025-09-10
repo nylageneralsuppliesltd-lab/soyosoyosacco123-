@@ -1,22 +1,36 @@
-# Deployment Configuration Guide
+# SOYOSOYO SACCO Assistant - Zero-Cost Deployment Guide
 
-## Quick Fix Summary
+## 🚀 Working Solution: Replit + Neon (100% Free)
 
-The deployment issues have been resolved with the following fixes:
+**Live Application:** https://soyosoyosacco-123-nylageneralsupp.replit.app
 
-✅ **Custom Build Script Created** (`build.js`)
-- Skips `npm audit fix` to avoid dependency conflicts
-- Excludes database operations during build (no DATABASE_URL required)
-- Uses `--no-audit --no-fund` flags for clean dependency installation
+### Current Status ✅
+- ✅ Chat functionality working
+- ✅ File uploads (PDF, Word, images with OCR)
+- ✅ Document-based AI responses only
+- ✅ Embeddable widgets for Google Sites
+- ✅ PostgreSQL database with Neon
+- ✅ Zero ongoing costs
 
-✅ **Custom Start Script Created** (`start.js`)  
-- Handles database migrations at runtime when DATABASE_URL is available
-- Includes proper error handling and environment validation
-- Graceful shutdown handling for production
+### Quick Shortcut Workaround
 
-## Manual Deployment Configuration Required
+**Infrastructure Limitation**: Render + Supabase has IPv6 connectivity issues (`ENETUNREACH`)
+**Solution**: Use the working Replit deployment with Neon database
 
-Since package.json cannot be auto-updated, you need to manually configure the deployment:
+## Embedding in Google Sites
+
+Use this HTML code in Google Sites:
+
+```html
+<iframe 
+  src="https://soyosoyosacco-123-nylageneralsupp.replit.app/google-sites-svg-embed.html"
+  width="100%" 
+  height="600"
+  style="border: none; border-radius: 8px;">
+</iframe>
+```
+
+## Manual Deployment Configuration (If Needed)
 
 ### Step 1: Navigate to Deployments Tab
 1. Go to your Replit project
