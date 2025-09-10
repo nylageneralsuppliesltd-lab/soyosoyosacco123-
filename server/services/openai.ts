@@ -91,3 +91,32 @@ export async function analyzeFileContent(content: string, fileName: string, mime
     throw new Error(`Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
+
+export async function generateImage(prompt: string, userId?: string): Promise<string> {
+  try {
+    console.log("Generating image with prompt:", prompt);
+    
+    // Create SACCO-themed prompt
+    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
+    
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: saccoPrompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "standard",
+      user: userId
+    });
+
+    const imageUrl = response.data[0].url;
+    if (!imageUrl) {
+      throw new Error("No image URL returned from OpenAI");
+    }
+
+    console.log("Image generated successfully:", imageUrl);
+    return imageUrl;
+  } catch (error) {
+    console.error("Image generation error:", error);
+    throw new Error(`Failed to generate image: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+}
