@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SOYOSOYO SACCO Assistant</title>
+    <!-- Markdown parser for rich text formatting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.0/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
@@ -232,6 +234,41 @@
             transform: none;
         }
         
+        .camera-button {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
+            border: none;
+            border-radius: 50%;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+        }
+        
+        .camera-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4);
+        }
+        
+        .camera-button.active {
+            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
+            box-shadow: 0 4px 12px rgba(125, 211, 192, 0.3);
+        }
+        
+        .image-mode-indicator {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
         .message {
             display: flex;
             gap: 12px;
@@ -453,8 +490,16 @@
             </div>
             
             <div class="chat-input">
+                <div id="imageModeIndicator" class="image-mode-indicator" style="display: none;">
+                    🎨 Image mode - Click camera again to switch back to chat
+                </div>
                 <div class="chat-input-container">
                     <textarea class="chat-input-field" id="messageInput" placeholder="Ask about loans, savings, membership, or any SACCO services..." rows="1"></textarea>
+                    <button class="camera-button" id="cameraButton" title="Generate images">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                            <path d="M12 2C13.1 2 14 2.9 14 4H16L17 5V6H20C21.1 6 22 6.9 22 8V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V8C2 6.9 2.9 6 4 6H7L8 5H10C10 2.9 10.9 2 12 2M12 7C9.24 7 7 9.24 7 12S9.24 17 12 17 17 14.76 17 12 14.76 7 12 7M12 9C13.66 9 15 10.34 15 12S13.66 15 12 15 9 13.66 9 12 10.34 9 12 9Z"/>
+                        </svg>
+                    </button>
                     <button class="send-button" id="sendButton">
                         <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
                             <path d="M28 16L4 28V20L20 16L4 12V4L28 16Z" fill="white"/>
