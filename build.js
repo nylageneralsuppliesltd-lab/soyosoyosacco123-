@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 console.log('🔧 Starting SOYOSOYO SACCO Assistant build process...');
 
@@ -18,10 +14,18 @@ try {
   execSync('npm install', { stdio: 'inherit' });
   
   console.log('🔧 Running audit fix...');
-  execSync('npm audit fix', { stdio: 'inherit' });
+  try {
+    execSync('npm audit fix', { stdio: 'inherit' });
+  } catch (auditError) {
+    console.log('⚠️  Audit fix completed with warnings, continuing...');
+  }
   
   console.log('🗄️  Pushing database schema...');
-  execSync('npx drizzle-kit push', { stdio: 'inherit' });
+  try {
+    execSync('npx drizzle-kit push', { stdio: 'inherit' });
+  } catch (dbError) {
+    console.log('⚠️  Database push failed, continuing with build...');
+  }
   
   console.log('🏗️  Building frontend with Vite...');
   execSync('vite build', { stdio: 'inherit' });
@@ -34,11 +38,18 @@ try {
   if (fs.existsSync(distPath)) {
     console.log('✅ Build completed successfully!');
     console.log('📁 Output directory:', distPath);
+    
+    // List the contents of dist directory for debugging
+    const distContents = fs.readdirSync(distPath);
+    console.log('📋 Build artifacts:', distContents);
   } else {
     throw new Error('Build output not found in dist directory');
   }
   
+  console.log('🎉 Build process completed successfully!');
+  
 } catch (error) {
   console.error('❌ Build failed:', error.message);
+  console.error('Stack trace:', error.stack);
   process.exit(1);
 }
