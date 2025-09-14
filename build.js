@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -10,28 +11,13 @@ console.log('🔧 Starting SOYOSOYO SACCO Assistant build process...');
 process.env.NODE_ENV = 'production';
 
 try {
-  console.log('📦 Installing dependencies...');
-  execSync('npm install', { stdio: 'inherit' });
+  console.log('📦 Running npm build script...');
   
-  console.log('🔧 Running audit fix...');
-  try {
-    execSync('npm audit fix', { stdio: 'inherit' });
-  } catch (auditError) {
-    console.log('⚠️  Audit fix completed with warnings, continuing...');
-  }
-  
-  console.log('🗄️  Pushing database schema...');
-  try {
-    execSync('npx drizzle-kit push', { stdio: 'inherit' });
-  } catch (dbError) {
-    console.log('⚠️  Database push failed, continuing with build...');
-  }
-  
-  console.log('🏗️  Building frontend with Vite...');
-  execSync('vite build', { stdio: 'inherit' });
-  
-  console.log('📦 Building backend with ESBuild...');
-  execSync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist', { stdio: 'inherit' });
+  // Use the exact npm build command that works
+  execSync('npm run build', { 
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production' }
+  });
   
   // Verify build output
   const distPath = path.join(__dirname, 'dist');
