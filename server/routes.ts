@@ -208,10 +208,13 @@ export async function registerRoutes(app: express.Express) {
         const files = await storage.getAllFiles();
         const relevantFiles = files.filter(f => f.extractedText && f.extractedText.length > 0);
         
+        console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
+        
         if (relevantFiles.length > 0) {
           fileContext = relevantFiles
             .map(f => `=== ${f.originalName} ===\n${f.extractedText}`)
             .join('\n\n');
+          console.log(`DEBUG: File context length: ${fileContext.length} characters`);
         }
       }
 
