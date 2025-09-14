@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-// @ts-check
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('🔧 Starting SOYOSOYO SACCO Assistant build process...');
 
@@ -11,13 +14,26 @@ console.log('🔧 Starting SOYOSOYO SACCO Assistant build process...');
 process.env.NODE_ENV = 'production';
 
 try {
-  console.log('📦 Running npm build script...');
+  console.log('🗄️  Pushing database schema (if DATABASE_URL available)...');
+  if (process.env.DATABASE_URL) {
+    try {
+      execSync('npx drizzle-kit push', { 
+        stdio: 'inherit',
+        env: { ...process.env, NODE_ENV: 'production' }
+      });
+      console.log('✅ Database schema updated successfully');
+    } catch (dbError) {
+      console.log('⚠️  Database push failed, continuing with build...');
+    }
+  } else {
+    console.log('⚠️  DATABASE_URL not set, skipping schema push');
+  }
   
-  // Use the exact npm build command that works
-  execSync('npm run build', { 
-    stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: 'production' }
-  });
+  console.log('🏗️  Building frontend with Vite...');
+  execSync('npx vite build', { stdio: 'inherit' });
+  
+  console.log('📦 Building backend with ESBuild...');
+  execSync('npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist', { stdio: 'inherit' });
   
   // Verify build output
   const distPath = path.join(__dirname, 'dist');

@@ -23,7 +23,10 @@ try {
   
   if (fs.existsSync(distPath)) {
     console.log('✅ Starting production server...');
-    execSync('npm start', { stdio: 'inherit' });
+    execSync('npm start', { 
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: 'production' }
+    });
   } else {
     throw new Error('Production build not found after build process');
   }
