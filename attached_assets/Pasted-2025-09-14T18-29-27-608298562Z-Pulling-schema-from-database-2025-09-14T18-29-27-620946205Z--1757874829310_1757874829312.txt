@@ -1,0 +1,100 @@
+2025-09-14T18:29:27.608298562Z [✓] Pulling schema from database...
+2025-09-14T18:29:27.620946205Z [i] No changes detected
+2025-09-14T18:29:28.135641595Z ✅ Database migrations completed
+2025-09-14T18:29:28.135994635Z 🌐 Starting production server...
+2025-09-14T18:29:36.646968634Z Database config: {
+2025-09-14T18:29:36.647002655Z   env: 'production',
+2025-09-14T18:29:36.647008005Z   hasUrl: true,
+2025-09-14T18:29:36.647013475Z   host: 'ep-hidden-silence-adpr6x7j.c-2.us-east-1.aws.neon.tech',
+2025-09-14T18:29:36.647018625Z   finalConnection: 'postgresql://neondb_owner:****@ep-hidden-silence-adpr6x7j.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require'
+2025-09-14T18:29:36.647051537Z }
+2025-09-14T18:29:36.740722845Z 📁 Serving static files from: /opt/render/project/src/dist/public
+2025-09-14T18:29:36.745410766Z Server running on port 10000
+2025-09-14T18:29:36.745425277Z Frontend available at http://localhost:10000
+2025-09-14T18:29:36.745576391Z Environment: production
+2025-09-14T18:29:36.745591801Z 🗃️ Initializing database schema...
+2025-09-14T18:29:37.932639442Z ==> Your service is live 🎉
+2025-09-14T18:29:37.95778975Z ==> 
+2025-09-14T18:29:37.981810278Z ==> ///////////////////////////////////////////////////////////
+2025-09-14T18:29:38.005347637Z ==> 
+2025-09-14T18:29:38.030585774Z ==> Available at your primary URL https://soyosoyosacco123.onrender.com
+2025-09-14T18:29:38.054726963Z ==> 
+2025-09-14T18:29:38.079433841Z ==> ///////////////////////////////////////////////////////////
+2025-09-14T18:29:41.445925157Z No config path provided, using default 'drizzle.config.ts'
+2025-09-14T18:29:41.532899929Z Reading config file '/opt/render/project/src/drizzle.config.ts'
+2025-09-14T18:29:48.142469369Z Using 'pg' driver for database querying
+2025-09-14T18:29:50.334443015Z ==> No open HTTP ports detected on 0.0.0.0, continuing to scan...
+2025-09-14T18:29:51.340524076Z [⣷] Pulling schema from database...
+2025-09-14T18:29:51.378202779Z [⣯] Pulling schema from database...
+2025-09-14T18:29:51.639999768Z [⣟] Pulling schema from database...
+2025-09-14T18:29:51.767690368Z [⡿] Pulling schema from database...
+2025-09-14T18:29:51.895236133Z [⢿] Pulling schema from database...
+2025-09-14T18:29:52.023665584Z [⣻] Pulling schema from database...
+2025-09-14T18:29:52.155996743Z [⣽] Pulling schema from database...
+2025-09-14T18:29:52.288198409Z [⣷] Pulling schema from database...
+2025-09-14T18:29:52.414540411Z [⣯] Pulling schema from database...
+2025-09-14T18:29:52.543427814Z [⣟] Pulling schema from database...
+2025-09-14T18:29:52.671547886Z [⡿] Pulling schema from database...
+2025-09-14T18:29:52.799823673Z [⢿] Pulling schema from database...
+2025-09-14T18:29:52.928086648Z [⣻] Pulling schema from database...
+2025-09-14T18:29:53.056309603Z [⣽] Pulling schema from database...
+2025-09-14T18:29:53.185472684Z [⣷] Pulling schema from database...
+2025-09-14T18:29:53.314688386Z [⣯] Pulling schema from database...
+2025-09-14T18:29:53.443210299Z [⣟] Pulling schema from database...
+2025-09-14T18:29:53.570342203Z [⡿] Pulling schema from database...
+2025-09-14T18:29:53.698494186Z [⢿] Pulling schema from database...
+2025-09-14T18:29:53.830999921Z [⣻] Pulling schema from database...
+2025-09-14T18:29:53.959538254Z [⣽] Pulling schema from database...
+2025-09-14T18:29:53.962312821Z [✓] Pulling schema from database...
+2025-09-14T18:29:54.033734718Z [i] No changes detected
+2025-09-14T18:29:54.241438155Z ✅ Database schema updated!
+2025-09-14T18:29:56.127125812Z Chat error: error: invalid value for parameter "default_transaction_isolation": "read_committed"
+2025-09-14T18:29:56.127149392Z     at /opt/render/project/src/node_modules/pg-pool/index.js:45:11
+2025-09-14T18:29:56.127152412Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-14T18:29:56.127155242Z     at async file:///opt/render/project/src/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2025-09-14T18:29:56.127157702Z     at async Object.createConversation (file:///opt/render/project/src/dist/index.js:248:22)
+2025-09-14T18:29:56.127159833Z     at async file:///opt/render/project/src/dist/index.js:565:24 {
+2025-09-14T18:29:56.127161953Z   length: 98,
+2025-09-14T18:29:56.127184313Z   severity: 'ERROR',
+2025-09-14T18:29:56.127186703Z   code: 'XX000',
+2025-09-14T18:29:56.127188943Z   detail: undefined,
+2025-09-14T18:29:56.127191334Z   hint: undefined,
+2025-09-14T18:29:56.127193554Z   position: undefined,
+2025-09-14T18:29:56.127196574Z   internalPosition: undefined,
+2025-09-14T18:29:56.127198654Z   internalQuery: undefined,
+2025-09-14T18:29:56.127201184Z   where: undefined,
+2025-09-14T18:29:56.127203214Z   schema: undefined,
+2025-09-14T18:29:56.127205324Z   table: undefined,
+2025-09-14T18:29:56.127207364Z   column: undefined,
+2025-09-14T18:29:56.127209424Z   dataType: undefined,
+2025-09-14T18:29:56.127211684Z   constraint: undefined,
+2025-09-14T18:29:56.127213784Z   file: undefined,
+2025-09-14T18:29:56.127215844Z   line: undefined,
+2025-09-14T18:29:56.127217994Z   routine: undefined
+2025-09-14T18:29:56.127220074Z }
+2025-09-14T18:29:59.242461955Z 🔄 Starting background asset preloading...
+2025-09-14T18:29:59.2426467Z DEBUG: Skipping asset preloading to conserve OpenAI quota
+2025-09-14T18:30:10.110158454Z Chat error: error: invalid value for parameter "default_transaction_isolation": "read_committed"
+2025-09-14T18:30:10.110186345Z     at /opt/render/project/src/node_modules/pg-pool/index.js:45:11
+2025-09-14T18:30:10.110191035Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-14T18:30:10.110195215Z     at async file:///opt/render/project/src/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2025-09-14T18:30:10.110223616Z     at async Object.createConversation (file:///opt/render/project/src/dist/index.js:248:22)
+2025-09-14T18:30:10.110226686Z     at async file:///opt/render/project/src/dist/index.js:565:24 {
+2025-09-14T18:30:10.110228896Z   length: 98,
+2025-09-14T18:30:10.110233647Z   severity: 'ERROR',
+2025-09-14T18:30:10.110235827Z   code: 'XX000',
+2025-09-14T18:30:10.110238027Z   detail: undefined,
+2025-09-14T18:30:10.110240187Z   hint: undefined,
+2025-09-14T18:30:10.110242297Z   position: undefined,
+2025-09-14T18:30:10.110245097Z   internalPosition: undefined,
+2025-09-14T18:30:10.110247127Z   internalQuery: undefined,
+2025-09-14T18:30:10.110249077Z   where: undefined,
+2025-09-14T18:30:10.110251087Z   schema: undefined,
+2025-09-14T18:30:10.110253427Z   table: undefined,
+2025-09-14T18:30:10.110255607Z   column: undefined,
+2025-09-14T18:30:10.110257667Z   dataType: undefined,
+2025-09-14T18:30:10.110259677Z   constraint: undefined,
+2025-09-14T18:30:10.110261667Z   file: undefined,
+2025-09-14T18:30:10.110263677Z   line: undefined,
+2025-09-14T18:30:10.110265777Z   routine: undefined
+2025-09-14T18:30:10.110267897Z }

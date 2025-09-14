@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SOYOSOYO SACCO Assistant</title>
-    <!-- Markdown parser for rich text formatting -->
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.0/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
@@ -38,11 +36,14 @@
             justify-content: center;
             padding: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
         
         .sacco-logo-svg {
             width: 36px;
             height: 36px;
+            shape-rendering: geometricPrecision;
         }
         
         @keyframes pulse {
@@ -55,6 +56,10 @@
             transform: scale(1.15);
             box-shadow: 0 10px 30px rgba(30, 123, 133, 0.6);
             animation: none;
+        }
+        
+        .chat-button:hover .chat-button-logo {
+            transform: none; /* Prevent SVG scaling */
         }
         
         .chat-label {
@@ -74,9 +79,15 @@
             animation: glitter 3s infinite ease-in-out;
             transition: all 0.3s ease;
             white-space: nowrap;
+            opacity: 1; /* Visible by default */
+            transform: translateX(0); /* No initial translation */
         }
         
-        .chat-label.hidden { opacity: 0; transform: translateX(10px); pointer-events: none; }
+        .chat-label.hidden {
+            opacity: 0;
+            transform: translateX(10px);
+            pointer-events: none;
+        }
         
         @keyframes glitter {
             0% { box-shadow: 0 4px 15px rgba(30, 123, 133, 0.3); }
@@ -85,9 +96,9 @@
         }
         
         .chat-window {
-            position: absolute;
-            bottom: 88px;
-            right: 0;
+            position: fixed;
+            top: 10px;
+            right: 16px;
             width: min(90vw, 380px);
             max-height: 85vh;
             background: white;
@@ -96,7 +107,7 @@
             border: 1px solid #e5e7eb;
             display: none;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
             transform: translateY(20px) scale(0.95);
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
@@ -150,6 +161,12 @@
             justify-content: center;
             padding: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        
+        .header-text {
+            overflow: visible;
         }
         
         .header-text h3 {
@@ -158,6 +175,7 @@
             margin: 0;
             line-height: 1.2;
             text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            white-space: nowrap;
         }
         
         .header-text p {
@@ -234,41 +252,6 @@
             transform: none;
         }
         
-        .camera-button {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
-            border: none;
-            border-radius: 50%;
-            width: 52px;
-            height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
-        }
-        
-        .camera-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4);
-        }
-        
-        .camera-button.active {
-            background: linear-gradient(135deg, #7dd3c0 0%, #1e7b85 100%);
-            box-shadow: 0 4px 12px rgba(125, 211, 192, 0.3);
-        }
-        
-        .image-mode-indicator {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-        
         .message {
             display: flex;
             gap: 12px;
@@ -289,6 +272,8 @@
             flex-shrink: 0;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
         
         .message.user .message-avatar {
@@ -346,6 +331,8 @@
             justify-content: center;
             padding: 12px;
             box-shadow: 0 8px 25px rgba(30, 123, 133, 0.15);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
         
         .welcome-title {
@@ -414,9 +401,11 @@
                 width: min(95vw, 350px); 
                 max-height: 90vh;
                 bottom: 78px;
+                top: 10px;
+                right: 12px;
             }
             .chat-header { padding: 16px; }
-            .header-logo { width: 40px; height: 40px; }
+            .header-logo { width: 36px; height: 36px; }
             .header-text h3 { font-size: 16px; }
             .header-text p { font-size: 12px; }
             .chat-messages { padding: 16px; }
@@ -440,7 +429,7 @@
                         <circle cx="50" cy="50" r="45" fill="#7dd3c0" stroke="#1e7b85" stroke-width="3"/>
                         <circle cx="50" cy="50" r="35" fill="white" stroke="#1e7b85" stroke-width="2"/>
                         <path d="M35 40 L50 55 L65 40" stroke="#1e7b85" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                        <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="Arial, sans-serif" font-size="10" font-weight="bold">SACCO</text>
+                        <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="bold">SACCO</text>
                     </svg>
                 </div>
             </button>
@@ -460,12 +449,12 @@
                             <circle cx="50" cy="50" r="45" fill="#7dd3c0" stroke="#1e7b85" stroke-width="3"/>
                             <circle cx="50" cy="50" r="35" fill="white" stroke="#1e7b85" stroke-width="2"/>
                             <path d="M35 40 L50 55 L65 40" stroke="#1e7b85" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                            <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="Arial, sans-serif" font-size="10" font-weight="bold">SACCO</text>
+                            <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="12" font-weight="bold">SACCO</text>
                         </svg>
                     </div>
                     <div class="header-text">
                         <h3>SOYOSOYO SACCO</h3>
-                        <p>Co-operative Savings & Credit Society</p>
+                        <p>Personal Assistant 24/7</p>
                     </div>
                 </div>
                 <button class="close-button" id="closeButton">✕</button>
@@ -478,28 +467,20 @@
                             <circle cx="50" cy="50" r="45" fill="#7dd3c0" stroke="#1e7b85" stroke-width="3"/>
                             <circle cx="50" cy="50" r="35" fill="white" stroke="#1e7b85" stroke-width="2"/>
                             <path d="M35 40 L50 55 L65 40" stroke="#1e7b85" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                            <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="Arial, sans-serif" font-size="8" font-weight="bold">SACCO</text>
+                            <text x="50" y="75" text-anchor="middle" fill="#1e7b85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="12" font-weight="bold">SACCO</text>
                         </svg>
                     </div>
                     <div class="welcome-title">Welcome to SOYOSOYO SACCO</div>
-                    <div class="welcome-subtitle">Co-operative Savings & Credit Society</div>
+                    <div class="welcome-subtitle">Personal Assistant 24/7</div>
                     <div class="welcome-description">
-                        Your trusted partner in financial growth and security. I'm here to assist you with loans, savings accounts, membership information, and all our SACCO services. How can I help you today?
+                        Your trusted partner in financial growth and security. I'm here to assist you with all SOYOSOYO SACCO related queries. How can I help you today?
                     </div>
                 </div>
             </div>
             
             <div class="chat-input">
-                <div id="imageModeIndicator" class="image-mode-indicator" style="display: none;">
-                    🎨 Image mode - Click camera again to switch back to chat
-                </div>
                 <div class="chat-input-container">
                     <textarea class="chat-input-field" id="messageInput" placeholder="Ask about loans, savings, membership, or any SACCO services..." rows="1"></textarea>
-                    <button class="camera-button" id="cameraButton" title="Generate images">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                            <path d="M12 2C13.1 2 14 2.9 14 4H16L17 5V6H20C21.1 6 22 6.9 22 8V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V8C2 6.9 2.9 6 4 6H7L8 5H10C10 2.9 10.9 2 12 2M12 7C9.24 7 7 9.24 7 12S9.24 17 12 17 17 14.76 17 12 14.76 7 12 7M12 9C13.66 9 15 10.34 15 12S13.66 15 12 15 9 13.66 9 12 10.34 9 12 9Z"/>
-                        </svg>
-                    </button>
                     <button class="send-button" id="sendButton">
                         <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
                             <path d="M28 16L4 28V20L20 16L4 12V4L28 16Z" fill="white"/>
@@ -516,7 +497,6 @@
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
-                this.isImageMode = false;
                 this.apiBaseUrl = 'https://soyosoyosacco-123-nylageneralsupp.replit.app';
                 
                 this.chatButton = document.getElementById('chatButton');
@@ -524,10 +504,8 @@
                 this.closeButton = document.getElementById('closeButton');
                 this.messageInput = document.getElementById('messageInput');
                 this.sendButton = document.getElementById('sendButton');
-                this.cameraButton = document.getElementById('cameraButton');
                 this.chatMessages = document.getElementById('chatMessages');
                 this.chatLabel = document.getElementById('chatLabel');
-                this.imageModeIndicator = document.getElementById('imageModeIndicator');
                 
                 this.setupEventListeners();
                 this.checkServerHealth();
@@ -542,7 +520,6 @@
                 this.chatButton.addEventListener('click', () => this.toggleChat());
                 this.closeButton.addEventListener('click', () => this.closeChat());
                 this.sendButton.addEventListener('click', () => this.sendMessage());
-                this.cameraButton.addEventListener('click', () => this.toggleImageMode());
                 this.messageInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -588,20 +565,6 @@
                 }, 300);
             }
             
-            toggleImageMode() {
-                this.isImageMode = !this.isImageMode;
-                
-                if (this.isImageMode) {
-                    this.cameraButton.classList.add('active');
-                    this.imageModeIndicator.style.display = 'block';
-                    this.messageInput.placeholder = 'Describe the image you want to generate...';
-                } else {
-                    this.cameraButton.classList.remove('active');
-                    this.imageModeIndicator.style.display = 'none';
-                    this.messageInput.placeholder = 'Ask about loans, savings, membership, or any SACCO services...';
-                }
-            }
-            
             async sendMessage() {
                 const message = this.messageInput.value.trim();
                 if (!message || this.isLoading) return;
@@ -611,80 +574,42 @@
                 this.isLoading = true;
                 this.sendButton.disabled = true;
                 
-                if (this.isImageMode) {
-                    this.addMessage(`🎨 Generate image: ${message}`, 'user');
-                    this.showTypingIndicator();
-                    
-                    try {
-                        const response = await fetch(`${this.apiBaseUrl}/api/generate-image`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                prompt: message,
-                                conversationId: this.conversationId
-                            }),
-                            signal: AbortSignal.timeout(60000)
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                        }
-                        
-                        const data = await response.json();
-                        this.hideTypingIndicator();
-                        
-                        if (data.imageUrl) {
-                            this.addMessage(`🖼️ **Generated Image** 📸\n\n![Generated image](${data.imageUrl})\n\n*Prompt: ${data.prompt}*`, 'assistant');
-                            this.conversationId = data.conversationId || this.conversationId;
-                        } else {
-                            throw new Error('No image URL in response');
-                        }
-                        
-                        this.isImageMode = false;
-                        this.toggleImageMode();
-                    } catch (error) {
-                        console.error('Image generation error:', error);
-                        this.hideTypingIndicator();
-                        this.addMessage("I'm having trouble generating images right now. Please try again in a moment.", 'assistant');
-                    }
-                } else {
-                    this.addMessage(message, 'user');
-                    this.showTypingIndicator();
-                    
-                    try {
-                        const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                message, 
-                                conversationId: this.conversationId,
-                                includeContext: true 
-                            }),
-                            signal: AbortSignal.timeout(30000)
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                        }
-                        
-                        const data = await response.json();
-                        this.hideTypingIndicator();
-                        
-                        if (data.response) {
-                            this.addMessage(data.response, 'assistant');
-                            this.conversationId = data.conversationId;
-                        } else {
-                            throw new Error('Invalid response format from server');
-                        }
-                    } catch (error) {
-                        console.error('Chat error:', error);
-                        this.hideTypingIndicator();
-                        this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
-                    }
-                }
+                this.addMessage(message, 'user');
+                this.showTypingIndicator();
                 
-                this.isLoading = false;
-                this.sendButton.disabled = false;
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            message, 
+                            conversationId: this.conversationId,
+                            includeContext: true 
+                        }),
+                        signal: AbortSignal.timeout(30000)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    this.hideTypingIndicator();
+                    
+                    if (data.response) {
+                        this.addMessage(data.response, 'assistant');
+                        this.conversationId = data.conversationId;
+                    } else {
+                        throw new Error('Invalid response format from server');
+                    }
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    this.hideTypingIndicator();
+                    this.addMessage("I'm having trouble connecting to the server right now. Please try again in a moment.", 'assistant');
+                } finally {
+                    this.isLoading = false;
+                    this.sendButton.disabled = false;
+                }
             }
             
             addMessage(content, role) {
@@ -709,75 +634,7 @@
                 
                 const bubbleDiv = document.createElement('div');
                 bubbleDiv.className = 'message-bubble';
-                
-                // Parse markdown for rich formatting
-                if (typeof marked !== 'undefined' && role === 'assistant') {
-                    // Configure marked for safe HTML and better styling
-                    marked.setOptions({
-                        breaks: true,
-                        gfm: true
-                    });
-                    
-                    try {
-                        bubbleDiv.innerHTML = marked.parse(content);
-                        
-                        // Style the markdown elements
-                        const paragraphs = bubbleDiv.querySelectorAll('p');
-                        paragraphs.forEach((p, index) => {
-                            p.style.margin = index === paragraphs.length - 1 ? '0' : '0 0 8px 0';
-                        });
-                        
-                        const strong = bubbleDiv.querySelectorAll('strong');
-                        strong.forEach(s => {
-                            s.style.fontWeight = 'bold';
-                            s.style.color = '#1e7b85';
-                        });
-                        
-                        const tables = bubbleDiv.querySelectorAll('table');
-                        tables.forEach(table => {
-                            table.style.borderCollapse = 'collapse';
-                            table.style.width = '100%';
-                            table.style.marginTop = '8px';
-                        });
-                        
-                        const tableCells = bubbleDiv.querySelectorAll('td, th');
-                        tableCells.forEach(cell => {
-                            cell.style.border = '1px solid #e5e7eb';
-                            cell.style.padding = '6px 8px';
-                        });
-                        
-                        const tableHeaders = bubbleDiv.querySelectorAll('th');
-                        tableHeaders.forEach(th => {
-                            th.style.backgroundColor = '#f8f9fa';
-                            th.style.fontWeight = 'bold';
-                        });
-                        
-                        const images = bubbleDiv.querySelectorAll('img');
-                        images.forEach(img => {
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                            img.style.borderRadius = '8px';
-                            img.style.marginTop = '8px';
-                        });
-                        
-                        const lists = bubbleDiv.querySelectorAll('ul, ol');
-                        lists.forEach(list => {
-                            list.style.paddingLeft = '20px';
-                            list.style.margin = '8px 0';
-                        });
-                        
-                        const listItems = bubbleDiv.querySelectorAll('li');
-                        listItems.forEach(li => {
-                            li.style.marginBottom = '4px';
-                        });
-                        
-                    } catch (error) {
-                        console.error('Markdown parsing error:', error);
-                        bubbleDiv.textContent = content;
-                    }
-                } else {
-                    bubbleDiv.textContent = content;
-                }
+                bubbleDiv.textContent = content;
                 
                 messageDiv.appendChild(avatarDiv);
                 messageDiv.appendChild(bubbleDiv);
