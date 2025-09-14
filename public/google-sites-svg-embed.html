@@ -612,6 +612,35 @@
                 }
             }
             
+            processMarkdown(text) {
+                // Convert markdown to HTML for better formatting
+                return text
+                    // Bold text: **text** or __text__
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #1e7b85; font-weight: 700;">$1</strong>')
+                    .replace(/__(.*?)__/g, '<strong style="color: #1e7b85; font-weight: 700;">$1</strong>')
+                    
+                    // Italic text: *text* or _text_
+                    .replace(/\*(.*?)\*/g, '<em style="color: #22c55e;">$1</em>')
+                    .replace(/_(.*?)_/g, '<em style="color: #22c55e;">$1</em>')
+                    
+                    // Lists: - item or * item
+                    .replace(/^[\s]*[-\*]\s(.+)$/gm, '<div style="margin: 4px 0; padding-left: 16px; position: relative;"><span style="position: absolute; left: 0; color: #7dd3c0; font-weight: bold;">•</span>$1</div>')
+                    
+                    // Numbered lists: 1. item
+                    .replace(/^[\s]*(\d+)\.\s(.+)$/gm, '<div style="margin: 4px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #1e7b85; font-weight: bold; font-size: 14px;">$1.</span>$2</div>')
+                    
+                    // Headers: ## Header
+                    .replace(/^##\s(.+)$/gm, '<h3 style="color: #1e7b85; font-weight: 700; font-size: 16px; margin: 12px 0 6px 0; border-bottom: 2px solid #7dd3c0; padding-bottom: 4px;">$1</h3>')
+                    .replace(/^#\s(.+)$/gm, '<h2 style="color: #1e7b85; font-weight: 700; font-size: 18px; margin: 16px 0 8px 0;">$1</h2>')
+                    
+                    // Code: `code`
+                    .replace(/`([^`]+)`/g, '<code style="background: #f0f9ff; color: #1e7b85; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 14px;">$1</code>')
+                    
+                    // Line breaks
+                    .replace(/\n\n/g, '<br><br>')
+                    .replace(/\n/g, '<br>');
+            }
+
             addMessage(content, role) {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${role}`;
@@ -634,7 +663,13 @@
                 
                 const bubbleDiv = document.createElement('div');
                 bubbleDiv.className = 'message-bubble';
-                bubbleDiv.textContent = content;
+                
+                // Process markdown for assistant messages, keep plain text for user messages
+                if (role === 'assistant') {
+                    bubbleDiv.innerHTML = this.processMarkdown(content);
+                } else {
+                    bubbleDiv.textContent = content;
+                }
                 
                 messageDiv.appendChild(avatarDiv);
                 messageDiv.appendChild(bubbleDiv);
