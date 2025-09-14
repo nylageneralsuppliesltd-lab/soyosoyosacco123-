@@ -40,8 +40,7 @@ console.log('Database config:', {
 const pool = new Pool({
   connectionString,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  // Force IPv4 and aggressive timeouts
-  options: process.env.NODE_ENV === 'production' ? '-c default_transaction_isolation=read_committed' : undefined,
+  // Optimized connection settings for production
   max: 5, // Smaller pool for transaction mode
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 8000,
