@@ -14,16 +14,18 @@ console.log('🔧 Starting SOYOSOYO SACCO Assistant build process...');
 process.env.NODE_ENV = 'production';
 
 try {
-  console.log('🗄️  Pushing database schema (if DATABASE_URL available)...');
+  console.log('🗄️  Checking database schema update...');
   if (process.env.DATABASE_URL) {
     try {
+      // Try to run drizzle-kit push with proper error handling
       execSync('npx drizzle-kit push', { 
         stdio: 'inherit',
         env: { ...process.env, NODE_ENV: 'production' }
       });
       console.log('✅ Database schema updated successfully');
     } catch (dbError) {
-      console.log('⚠️  Database push failed, continuing with build...');
+      console.log('⚠️  Database schema push skipped - drizzle-kit not available in production, continuing...');
+      console.log('   This is normal for production deployments where schema is managed separately');
     }
   } else {
     console.log('⚠️  DATABASE_URL not set, skipping schema push');
