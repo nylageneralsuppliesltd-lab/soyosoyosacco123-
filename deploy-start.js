@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Build wrapper script
- * This script calls the enhanced deployment build script in the scripts directory
+ * Deployment start wrapper script
+ * This script calls the actual deployment start script in the scripts directory
  */
 
 import { execSync } from 'child_process';
@@ -12,16 +12,16 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-console.log('🔧 Starting build via wrapper script...');
+console.log('🚀 Starting deployment via wrapper script...');
 
 try {
-  // Execute the enhanced deployment build script
-  const scriptPath = join(__dirname, 'scripts', 'deploy-build-v2.js');
+  // Execute the actual deploy-start script
+  const scriptPath = join(__dirname, 'scripts', 'deploy-start.js');
   execSync(`node ${scriptPath}`, { 
     stdio: 'inherit',
     env: process.env
   });
 } catch (error) {
-  console.error('❌ Build failed:', error.message);
+  console.error('❌ Deployment start failed:', error.message);
   process.exit(1);
 }
