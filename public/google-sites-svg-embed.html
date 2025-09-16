@@ -497,7 +497,7 @@
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
-                this.apiBaseUrl = 'https://soyosoyosacco123.onrender.com'; // Resolved to point to Render
+                this.apiBaseUrl = window.location.origin; // Resolved to point to Render
                 
                 this.chatButton = document.getElementById('chatButton');
                 this.chatWindow = document.getElementById('chatWindow');
