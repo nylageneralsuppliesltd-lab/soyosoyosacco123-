@@ -612,30 +612,19 @@
                 // First escape the HTML to prevent XSS
                 let html = this.escapeHtml(text);
                 
-                // Enhanced markdown rendering with proper table support
-                html = html
-                    // Convert **bold** to <strong>
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    // Convert *italic* to <em>
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    // Convert `code` to <code>
-                    .replace(/`([^`]+)`/g, '<code>$1</code>')
-                    // Convert line breaks
-                    .replace(/\n/g, '<br>');
-                
-                // Handle tables
-                const tableRegex = /\|(.+?)\|\|[\s\-\|:]+\|((?:\|.+?\|)*)/g;
+                // Handle tables BEFORE converting newlines to <br>
+                const tableRegex = /\|(.+?)\|\n\|[\s\-\|:]+\|\n((?:\|.+?\|\n?)*)/g;
                 html = html.replace(tableRegex, (match, header, body) => {
                     const headerCells = header.split('|').map(cell => cell.trim()).filter(cell => cell);
-                    const bodyRows = body.trim().split('|').filter(row => row.trim()).map(row => 
+                    const bodyRows = body.trim().split('\n').map(row => 
                         row.split('|').map(cell => cell.trim()).filter(cell => cell)
                     );
                     
                     let table = '<table>';
-                    table += '<tr>' + headerCells.map(cell => `<th>${this.escapeHtml(cell)}</th>`).join('') + '</tr>';
+                    table += '<tr>' + headerCells.map(cell => `<th>${cell}</th>`).join('') + '</tr>';
                     bodyRows.forEach(row => {
                         if (row.length > 0) {
-                            table += '<tr>' + row.map(cell => `<td>${this.escapeHtml(cell)}</td>`).join('') + '</tr>';
+                            table += '<tr>' + row.map(cell => `<td>${cell}</td>`).join('') + '</tr>';
                         }
                     });
                     table += '</table>';
@@ -644,7 +633,7 @@
                 });
                 
                 // Handle bullet points - improved to handle multiple lists
-                const lines = html.split('<br>');
+                const lines = html.split('\n');
                 let inList = false;
                 let result = [];
                 
@@ -668,7 +657,20 @@
                     result.push('</ul>');
                 }
                 
-                return result.join('<br>').replace(/<br><ul>/g, '<ul>').replace(/<\/ul><br>/g, '</ul>');
+                html = result.join('\n');
+                
+                // Enhanced markdown rendering with proper formatting
+                html = html
+                    // Convert **bold** to <strong>
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    // Convert *italic* to <em>
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    // Convert `code` to <code>
+                    .replace(/`([^`]+)`/g, '<code>$1</code>')
+                    // Convert line breaks
+                    .replace(/\n/g, '<br>');
+                
+                return html.replace(/<br><ul>/g, '<ul>').replace(/<\/ul><br>/g, '</ul>');
             }
             
             showTypingIndicator() {
