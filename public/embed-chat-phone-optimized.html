@@ -471,7 +471,7 @@
                 this.hasStarted = false;
                 
                 // API configuration - Update with your actual deployed URL
-                this.apiBaseUrl = window.location.origin;
+                this.apiBaseUrl = 'https://soyosoyosacco123.onrender.com';
                 
                 this.messageInput = document.getElementById('messageInput');
                 this.sendButton = document.getElementById('sendButton');
@@ -661,6 +661,10 @@
                 
                 // Enhanced markdown rendering with proper formatting
                 html = html
+                    // Convert headers - ### Header, ## Header, # Header
+                    .replace(/^### (.+)$/gm, '<h3 style="color: #1e7b85; font-size: 16px; font-weight: bold; margin: 8px 0 4px 0;">$1</h3>')
+                    .replace(/^## (.+)$/gm, '<h2 style="color: #1e7b85; font-size: 18px; font-weight: bold; margin: 10px 0 6px 0;">$1</h2>')
+                    .replace(/^# (.+)$/gm, '<h1 style="color: #1e7b85; font-size: 20px; font-weight: bold; margin: 12px 0 8px 0;">$1</h1>')
                     // Convert **bold** to <strong>
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     // Convert *italic* to <em>
