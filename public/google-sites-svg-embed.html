@@ -497,7 +497,7 @@
                 this.isOpen = false;
                 this.conversationId = null;
                 this.isLoading = false;
-                this.apiBaseUrl = window.location.origin; // Resolved to point to Render
+                this.apiBaseUrl =  'https://soyosoyosacco123.onrender.com';
                 
                 this.chatButton = document.getElementById('chatButton');
                 this.chatWindow = document.getElementById('chatWindow');
@@ -629,7 +629,8 @@
                     // Numbered lists: 1. item
                     .replace(/^[\s]*(\d+)\.\s(.+)$/gm, '<div style="margin: 4px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #1e7b85; font-weight: bold; font-size: 14px;">$1.</span>$2</div>')
                     
-                    // Headers: ## Header
+                    // Headers: ### Header, ## Header, # Header
+                    .replace(/^###\s(.+)$/gm, '<h4 style="color: #1e7b85; font-weight: 600; font-size: 14px; margin: 8px 0 4px 0; padding-left: 4px;">$1</h4>')
                     .replace(/^##\s(.+)$/gm, '<h3 style="color: #1e7b85; font-weight: 700; font-size: 16px; margin: 12px 0 6px 0; border-bottom: 2px solid #7dd3c0; padding-bottom: 4px;">$1</h3>')
                     .replace(/^#\s(.+)$/gm, '<h2 style="color: #1e7b85; font-weight: 700; font-size: 18px; margin: 16px 0 8px 0;">$1</h2>')
                     
