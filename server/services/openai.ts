@@ -66,9 +66,8 @@ INSTRUCTION: Answer with **bold** formatting, relevant emojis, proper markdown t
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 400, // Increased for longer, complete responses
+      max_tokens: 800, // Increased significantly for complete responses without truncation
       temperature: 0.1, // Lower temperature for consistency
-      stop: ["\n\n"], // Stop at double newlines to complete thoughts naturally
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
