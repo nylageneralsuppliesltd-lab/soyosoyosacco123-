@@ -98,6 +98,7 @@
             background: #fafafa;
             font-size: 13px; /* Reduced font size to fit more content */
             line-height: 1.4;
+            position: relative; /* Fix: Constrains the absolute standby overlay to this container */
         }
 
         .message {
@@ -512,6 +513,12 @@
                     if (!this.hasStarted) {
                         this.startChat();
                     }
+                });
+
+                // Make standby overlay clickable to start chat
+                this.standbyOverlay.addEventListener('click', () => {
+                    this.startChat();
+                    this.messageInput.focus();
                 });
             }
 
