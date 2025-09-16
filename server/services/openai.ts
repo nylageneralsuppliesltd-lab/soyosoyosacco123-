@@ -14,18 +14,26 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant. Give well-formatted answers using markdown and emojis for clarity:
+        content: `You are SOYOSOYO SACCO Assistant. Give comprehensive, well-formatted answers using markdown and emojis for clarity:
 
 FORMATTING RULES:
 - Use **bold** for important terms, amounts, and key points
-- Use tables for comparing rates, fees, or service details
+- Use tables for comparing rates, fees, or service details with proper markdown table syntax
 - Use bullet points for lists of services or requirements
 - Add relevant emojis to enhance readability (💰 for money, 📊 for data, 🏦 for banking, ✅ for benefits, 📋 for requirements)
-- Keep responses concise (2-4 sentences) but well-structured
+- Provide complete, detailed responses with full sentences - avoid abrupt cutoffs
+- Use proper markdown table syntax: | Column 1 | Column 2 | with proper alignment
 
-Use uploaded documents first, then brief general SACCO info. For details: visit soyosoyosacco.com.
+Use uploaded documents first, then comprehensive general SACCO info. For details: visit soyosoyosacco.com.
 
-EXAMPLE RESPONSE: "SACCOs typically offer **personal loans** 💰 for education and emergencies, **business loans** 🏢 for entrepreneurs, and **savings accounts** 🏦 with competitive rates. For specific **SOYOSOYO** loan terms and interest rates, visit soyosoyosacco.com. ✅"`
+EXAMPLE RESPONSE: "SACCOs typically offer **personal loans** 💰 for education and emergencies, **business loans** 🏢 for entrepreneurs, and **savings accounts** 🏦 with competitive rates. 
+
+| Loan Type | Interest Rate | Max Amount | Term |
+|-----------|---------------|------------|------|
+| Personal  | 12-15%       | $5,000     | 3 years |
+| Business  | 10-12%       | $25,000    | 5 years |
+
+For specific **SOYOSOYO** loan terms and current interest rates, please visit soyosoyosacco.com. ✅"`
       }
     ];
 
@@ -42,7 +50,7 @@ EXAMPLE RESPONSE: "SACCOs typically offer **personal loans** 💰 for education 
     if (fileContext && fileContext.trim().length > 0) {
       messages.push({
         role: "user",
-        content: `Answer briefly (1-3 sentences) based on SOYOSOYO SACCO documents. Use **bold** for key terms, relevant emojis, and create tables if comparing data: ${userMessage}
+        content: `Answer comprehensively based on SOYOSOYO SACCO documents. Use **bold** for key terms, relevant emojis, proper markdown tables for data comparisons, and provide complete responses with full sentences: ${userMessage}
 
 DOCUMENTS: ${fileContext}`
       });
@@ -51,15 +59,16 @@ DOCUMENTS: ${fileContext}`
         role: "user",
         content: `${userMessage}
 
-INSTRUCTION: Answer in 1-2 sentences with **bold** formatting and relevant emojis for key terms. Be extremely brief but well-formatted.`
+INSTRUCTION: Answer with **bold** formatting, relevant emojis, proper markdown tables when appropriate, and provide complete responses with full sentences. Be informative and well-formatted.`
       });
     }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 150, // Allow space for markdown formatting
+      max_tokens: 400, // Increased for longer, complete responses
       temperature: 0.1, // Lower temperature for consistency
+      stop: ["\n\n"], // Stop at double newlines to complete thoughts naturally
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
@@ -83,7 +92,7 @@ export async function analyzeFileContent(content: string, fileName: string, mime
           content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50-100 words) using only the information in the content.`
         }
       ],
-      max_tokens: 150,
+      max_tokens: 200,
     });
     return response.choices[0].message.content || "Could not analyze file content.";
   } catch (error) {
