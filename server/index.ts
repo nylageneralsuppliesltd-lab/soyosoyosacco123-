@@ -1,3 +1,4 @@
+import express from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import path from "path";
@@ -6,12 +7,13 @@ import fs from "fs/promises";
 import multer from "multer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Dynamic import for Express to handle CommonJS/ESM mismatch
-const express = await import("express");
-const app = express.default();
+const app = express();
 const server = createServer(app);
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB for free tier
+const upload = multer({ 
+  storage: multer.memoryStorage(), 
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  timeout: 30000 // 30s timeout for large files
+});
 
 app.use((req, res, next) => {
   console.log(`DEBUG: ${req.method} ${req.url}`);
