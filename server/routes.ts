@@ -287,6 +287,54 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Web scraping management routes
+  router.get("/api/scraping/status", async (req, res) => {
+    try {
+      const { getScrapingStatus } = await import("./services/webScraper");
+      const status = getScrapingStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Scraping status error:", error);
+      res.status(500).json({ error: "Failed to get scraping status" });
+    }
+  });
+
+  router.post("/api/scraping/refresh", async (req, res) => {
+    try {
+      const { scrapeWebsiteContent } = await import("./services/webScraper");
+      const result = await scrapeWebsiteContent();
+      
+      // Log the scraping attempt
+      await storage.createApiLog({
+        endpoint: "/api/scraping/refresh",
+        method: "POST",
+        statusCode: result.success ? 200 : 500,
+        responseTime: 0,
+        success: result.success,
+        metadata: { message: result.message, contentUpdated: result.contentUpdated }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Manual scraping error:", error);
+      
+      // Log the failed scraping attempt
+      await storage.createApiLog({
+        endpoint: "/api/scraping/refresh",
+        method: "POST",
+        statusCode: 500,
+        responseTime: 0,
+        success: false,
+        metadata: { error: error instanceof Error ? error.message : "Unknown error" }
+      });
+      
+      res.status(500).json({ 
+        error: "Failed to refresh website content",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   app.use("/", router);
   return app;
 }
