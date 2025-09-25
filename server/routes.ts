@@ -12,7 +12,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 export async function registerRoutes(app: express.Express) {
   const router = express.Router();
 
-  // Health check endpoint for deployment
+  // Health check endpoint
   router.get("/health", (req, res) => {
     res.status(200).json({ 
       status: "healthy", 
@@ -22,34 +22,34 @@ export async function registerRoutes(app: express.Express) {
     });
   });
 
-  // Simple health check at root for basic deployment checks
+  // Simple root health check
   router.get("/", (req, res, next) => {
-    // If this is an API health check (detected by Accept header), respond with JSON
-    if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    if (req.headers.accept && req.headers.accept.includes("application/json")) {
       return res.status(200).json({ status: "ok" });
     }
-    // Otherwise, let it fall through to serve the frontend
     next();
   });
 
-  // Ensure all API routes are properly prefixed to avoid conflicts with Vite
+  // Middleware to skip static/HMR
   router.use((req, res, next) => {
-    // Skip middleware for static assets and Vite HMR
-    if (req.path.startsWith('/@') || 
-        req.path.startsWith('/src/') || 
-        req.path.startsWith('/node_modules/') ||
-        req.path.includes('.js') || 
-        req.path.includes('.css') ||
-        req.path.includes('.tsx') ||
-        req.path.includes('.ts')) {
+    if (req.path.startsWith("/@") || 
+        req.path.startsWith("/src/") || 
+        req.path.startsWith("/node_modules/") ||
+        req.path.includes(".js") || 
+        req.path.includes(".css") ||
+        req.path.includes(".tsx") ||
+        req.path.includes(".ts")) {
       return next();
     }
     next();
   });
 
+  // Upload endpoint
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
+      console.log("DEBUG: /api/upload called");
       if (!req.file) {
+        console.log("DEBUG: No file uploaded");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
@@ -59,10 +59,10 @@ export async function registerRoutes(app: express.Express) {
       const mimeType = file.mimetype;
       const size = file.size;
 
-      // Process file
+      // Extract text
       const { extractedText, analysis } = await processUploadedFile(file.buffer, file.originalname, mimeType);
 
-      // Store file metadata and content in PostgreSQL
+      // Store in DB
       const fileData = insertFileSchema.parse({
         conversationId,
         filename,
@@ -78,6 +78,7 @@ export async function registerRoutes(app: express.Express) {
         content: file.buffer.toString("base64"),
       });
 
+      console.log("DEBUG: Upload successful");
       res.json({ id: createdFile.id, filename, originalName: file.originalname, mimeType, size, analysis });
     } catch (error) {
       console.error("Upload error:", error);
@@ -85,8 +86,10 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Get a file by ID
   router.get("/api/files/:id", async (req, res) => {
     try {
+      console.log(`DEBUG: Retrieving file ${req.params.id}`);
       const file = await storage.getFile(req.params.id);
       if (!file) {
         return res.status(404).json({ error: "File not found" });
@@ -96,9 +99,11 @@ export async function registerRoutes(app: express.Express) {
         .from(uploadedFiles)
         .where(eq(uploadedFiles.id, req.params.id))
         .limit(1);
+
       if (!dbFile?.content) {
         return res.status(404).json({ error: "File content not found" });
       }
+
       const buffer = Buffer.from(dbFile.content, "base64");
       res.set({
         "Content-Type": dbFile.mimeType,
@@ -111,6 +116,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Stats
   router.get("/api/stats", async (req, res) => {
     try {
       const conversations = await storage.getAllConversations();
@@ -135,6 +141,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Debug
   router.get("/api/debug", async (req, res) => {
     try {
       res.json({
@@ -152,6 +159,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Conversations
   router.get("/api/conversations", async (req, res) => {
     try {
       const conversations = await storage.getAllConversations();
@@ -162,6 +170,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // All files
   router.get("/api/files", async (req, res) => {
     try {
       const files = await storage.getAllFiles();
@@ -172,20 +181,22 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
+  // Chat endpoint
   router.post("/api/chat", async (req, res) => {
+    let fileContext = ""; // ✅ declare outside try
     try {
+      console.log("DEBUG: /api/chat called");
       const { message, conversationId, includeContext = true } = req.body;
       
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      // Create conversation if it doesn't exist
+      // Create or fetch conversation
       let conversation;
       if (conversationId) {
         conversation = await storage.getConversation(conversationId);
       }
-      
       if (!conversation) {
         conversation = await storage.createConversation({
           title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
@@ -199,29 +210,28 @@ export async function registerRoutes(app: express.Express) {
         role: "user",
       });
 
-      // Get conversation history
+      // Get history
       const history = await storage.getMessagesByConversation(conversation.id);
-      
-      // Get file context if requested
-      let fileContext = "";
+
+      // File context
       if (includeContext) {
         const files = await storage.getAllFiles();
-        const relevantFiles = files.filter((f: UploadedFile) => f.extractedText && f.extractedText.length > 0);
-        
+        const relevantFiles = files.filter((f: UploadedFile) => f.extractedText?.length > 0);
+
         console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
         
         if (relevantFiles.length > 0) {
           fileContext = relevantFiles
             .map((f: UploadedFile) => `=== ${f.originalName} ===\n${f.extractedText}`)
-            .join('\n\n');
+            .join("\n\n");
           console.log(`DEBUG: File context length: ${fileContext.length} characters`);
         }
       }
 
-      // Generate AI response using the OpenAI service
+      // Generate AI response
       const { generateChatResponse } = await import("./services/openai");
       const aiResponse = await generateChatResponse(message, history, fileContext);
-      
+
       // Save assistant message
       const assistantMessage = await storage.createMessage({
         conversationId: conversation.id,
@@ -238,14 +248,15 @@ export async function registerRoutes(app: express.Express) {
       console.error("Chat error details:", {
         message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : "No stack",
-        conversationId: req.body.conversationId,
-        userMessage: req.body.message,
-        fileContextLength: fileContext ? fileContext.length : 0  // Safe check
+        conversationId: req.body?.conversationId,
+        userMessage: req.body?.message,
+        fileContextLength: fileContext?.length || 0, // ✅ safe
       });
       res.status(500).json({ error: "Failed to process chat message" });
     }
   });
 
+  // Generate image
   router.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt, conversationId } = req.body;
@@ -254,29 +265,22 @@ export async function registerRoutes(app: express.Express) {
         return res.status(400).json({ error: "Image prompt is required" });
       }
 
-      // Generate image using OpenAI DALL-E
       const { generateImage } = await import("./services/openai");
       const imageUrl = await generateImage(prompt, conversationId);
       
-      // Log the image generation
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 200,
-        responseTime: 0, // We don't track this for images yet
+        responseTime: 0,
         success: true,
         metadata: { prompt, conversationId, imageUrl }
       });
 
-      res.json({
-        imageUrl,
-        prompt,
-        success: true
-      });
+      res.json({ imageUrl, prompt, success: true });
     } catch (error) {
       console.error("Image generation error:", error);
       
-      // Log the failed image generation
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
@@ -292,8 +296,6 @@ export async function registerRoutes(app: express.Express) {
       });
     }
   });
-
-  // Web scraping routes removed to fix deployment issues
 
   app.use("/", router);
   return app;
