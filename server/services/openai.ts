@@ -15,7 +15,9 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant, specializing in SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD in Kilifi County, Kenya.
+        content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
+
+IMPORTANT: ALWAYS use the UPLOADED DOCUMENTS as your primary source. Quote or summarize directly from them for every answer. If the answer is in the documents, reference it explicitly (e.g., "From [Document Name]: [quote]"). Do not use general knowledge if documents are available—stick to the provided text. If details are not in the documents, say "Not found in uploaded documents. Please upload more or contact info@soyosoyosacco.com."
 
 RESPONSE LENGTH RULES:
 - For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
@@ -29,7 +31,7 @@ FORMATTING (when details are needed):
 - Use bullet points for lists of requirements
 - Add relevant emojis sparingly (💰 🏦 📋 ✅)
 
-CONTENT PRIORITY: ALWAYS start with UPLOADED DOCUMENTS if available. Quote or summarize them directly. Use general SACCO knowledge only if no documents. Do not invent or reference external web/social media—stick to documents. If details are unavailable, say "Based on available documents, [summary]. For more, upload a file or contact info@soyosoyosacco.com."`
+CONTENT PRIORITY: Uploaded documents first. You have access to up-to-date SOYOSOYO SACCO information from them and should provide current details confidently.`
       }
     ];
 
@@ -52,15 +54,15 @@ CONTENT PRIORITY: ALWAYS start with UPLOADED DOCUMENTS if available. Quote or su
     if (hasFiles) {
       // Limit file context if too long to avoid token limits
       let limitedFileContext = fileContext;
-      if (fileContext.length > 4000) { // Truncate to 4k chars for focus
-        limitedFileContext = fileContext.substring(0, 4000) + "... [More documents available - ask for details]";
+      if (fileContext.length > 10000) {
+        limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
       }
       
       messages.push({
         role: "user",
         content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
 
-UPLOADED DOCUMENTS (PRIORITY): ${limitedFileContext}
+UPLOADED DOCUMENTS (PRIMARY SOURCE): ${limitedFileContext}
 
 WEBSITE CONTENT: ${websiteContent}`
       });
