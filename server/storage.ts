@@ -18,7 +18,12 @@ import { eq } from "drizzle-orm";
 
 // Initialize database - compatible with both Neon and Supabase
 // AGGRESSIVE IPv4 WORKAROUND for Render connectivity issues
-let connectionString = process.env.DATABASE_URL!;
+if (!process.env.DATABASE_URL) {
+  console.error("❌ CRITICAL: DATABASE_URL environment variable is missing!");
+  console.error("Please set DATABASE_URL in your Render environment variables.");
+  process.exit(1);
+}
+let connectionString = process.env.DATABASE_URL;
 
 // Force Supabase to use transaction pooler (IPv4-friendly)
 if (connectionString.includes('supabase.co') && process.env.NODE_ENV === 'production') {
@@ -37,15 +42,33 @@ console.log('Database config:', {
   finalConnection: connectionString.replace(/:[^:]*@/, ':****@')
 });
 
-const pool = new Pool({
-  connectionString,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  // Optimized connection settings for production
-  max: 5, // Smaller pool for transaction mode
-  idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 8000,
-});
-export const db = drizzle(pool);
+let pool: Pool;
+let db: any;
+
+try {
+  pool = new Pool({
+    connectionString,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    // Optimized connection settings for production
+    max: 5, // Smaller pool for transaction mode
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 8000,
+  });
+  
+  db = drizzle(pool);
+  
+  // Test the connection
+  pool.on('error', (err) => {
+    console.error('❌ Database pool error:', err);
+  });
+  
+  console.log("✅ Database pool initialized successfully");
+} catch (error) {
+  console.error("❌ CRITICAL: Failed to initialize database:", error);
+  process.exit(1);
+}
+
+export { db };
 
 // Storage interface implementation
 export const storage = {
