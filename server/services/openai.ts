@@ -45,10 +45,16 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
       }
     }
 
-    // Get website content with appropriate length limits based on file context
+    // Get website content with appropriate length limits based on file context (with error handling)
     const hasFiles = fileContext && fileContext.trim().length > 0;
     const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
-    const websiteContent = getStoredWebsiteContent(websiteContentLimit);
+    let websiteContent = "";
+    try {
+      websiteContent = getStoredWebsiteContent(websiteContentLimit);
+    } catch (error) {
+      console.error("⚠️ Web scraping service unavailable:", error);
+      websiteContent = "No current website content available. Using uploaded documents and general SACCO knowledge.";
+    }
     
     if (hasFiles) {
       // Limit file context if too long to avoid token limits
