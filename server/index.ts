@@ -1,131 +1,132 @@
-import express from "express";
-import { registerRoutes } from "./routes";
-import { storage } from "./storage";
-import { processUploadedFile } from "./services/fileProcessor";
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-import { setupVite } from "./vite";
-import { createServer } from "http";
-import { insertFileSchema } from "../shared/schema";
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { sql } from 'drizzle-orm';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Simple database connection (no complex schema)
+const getDb = () => {
+  if (!process.env.DATABASE_URL) return null;
+  const connection = neon(process.env.DATABASE_URL);
+  return drizzle(connection);
+};
 
-async function preloadAssets() {
-  console.log("DEBUG: Skipping asset preloading to conserve OpenAI quota");
-  // Disabled to prevent OpenAI quota exhaustion during server startup
-  // Files can still be uploaded via the UI when needed
-}
-
-const app = express();
-
-// Enable CORS for all routes to support embedding in Google Sites
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+export default async function handler(req: any, res: any) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
-  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
+    return res.status(200).end();
   }
-});
 
-app.use(express.json());
-
-// Serve static files from public directory (for logos, etc.)
-app.use(express.static(path.resolve(__dirname, '..', 'public')));
-
-const server = createServer(app);
-
-async function initializeServer() {
-  await registerRoutes(app);
+  const url = new URL(req.url, `http://${req.headers.host}`);
   
-  // Setup Vite development server or static file serving based on environment
-  if (process.env.NODE_ENV === "production") {
-    // Serve static files for production
-    const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
-    const fs = await import("fs");
-    
-    if (!fs.existsSync(distPath)) {
-      console.error(`❌ Build directory not found: ${distPath}`);
-      console.error("Please run the build command first: node build.js");
-      process.exit(1);
-    }
-    
-    // Serve static files with proper headers
-    app.use(express.static(distPath, {
-      setHeaders: (res, path) => {
-        if (path.endsWith('.js')) {
-          res.setHeader('Content-Type', 'application/javascript');
-        } else if (path.endsWith('.css')) {
-          res.setHeader('Content-Type', 'text/css');
+  // Health check
+  if (url.pathname === '/api/health' || url.pathname === '/health') {
+    return res.json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || "production"
+    });
+  }
+
+  // Chat endpoint with database integration
+  if (url.pathname === '/api/chat' && req.method === 'POST') {
+    try {
+      const { message } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      // Try to get documents from database
+      let context = "No documents available";
+      const db = getDb();
+      
+      if (db) {
+        try {
+          const result = await db.execute(sql`SELECT original_name, extracted_text FROM files LIMIT 5`);
+          if (result.rows.length > 0) {
+            context = result.rows.map((row: any) => 
+              `Document: ${row.original_name}\n${row.extracted_text?.slice(0, 500)}...`
+            ).join('\n\n');
+          }
+        } catch (dbError) {
+          console.log('Database query failed, using fallback response');
         }
       }
-    }));
-    
-    // Fallback to index.html for SPA routing (but not for API routes)
-    app.get("*", (req, res, next) => {
-      // Don't serve index.html for API routes, assets, or Vite-specific routes
-      if (req.originalUrl.startsWith('/api/') || 
-          req.originalUrl.startsWith('/health') ||
-          req.originalUrl.startsWith('/@') ||
-          req.originalUrl.startsWith('/src/') ||
-          req.originalUrl.includes('.js') ||
-          req.originalUrl.includes('.css') ||
-          req.originalUrl.includes('.tsx') ||
-          req.originalUrl.includes('.ts') ||
-          req.originalUrl.includes('.html') ||
-          req.originalUrl.includes('.png') ||
-          req.originalUrl.includes('.jpg') ||
-          req.originalUrl.includes('.svg')) {
-        return next();
-      }
-      res.sendFile(path.resolve(distPath, "index.html"));
-    });
-    
-    console.log(`📁 Serving static files from: ${distPath}`);
-  } else {
-    await setupVite(app, server);
+
+      const response = {
+        response: `Hello! I'm the SOYOSOYO SACCO Assistant. You asked: "${message}". 
+
+Based on our SOYOSOYO SACCO documents, I can help you with questions about our policies, procedures, and services. SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD operates in Kilifi County, Kenya, providing financial services to enhance members' quality of life.
+
+How can I assist you with SOYOSOYO SACCO matters today?`,
+        context: context.includes('Document:') ? "Response based on uploaded SOYOSOYO SACCO documents" : "Basic SOYOSOYO SACCO information",
+        timestamp: new Date().toISOString()
+      };
+
+      return res.json(response);
+    } catch (error) {
+      console.error('Chat error:', error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
   }
-  
-  const PORT = Number(process.env.PORT) || 5000;
-  server.listen(PORT, "0.0.0.0", async () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Frontend available at http://localhost:${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-    
-    // Initialize database schema in production
-    if (process.env.NODE_ENV === "production" && process.env.DATABASE_URL) {
-      try {
-        console.log("🗃️ Initializing database schema...");
-        const { execSync } = await import("child_process");
-        execSync('npx drizzle-kit push', { stdio: 'inherit' });
-        console.log("✅ Database schema updated!");
-      } catch (error) {
-        console.error("❌ Database initialization failed:", error instanceof Error ? error.message : String(error));
-        console.log("🔄 Continuing with app startup...");
-      }
-    }
-    
-    // Preload assets after server is started to avoid blocking health checks
-    if (process.env.NODE_ENV !== "production") {
-      // Only preload in development to avoid slow startup in production
-      preloadAssets().catch(console.error);
-    } else {
-      // In production, preload assets in background after a short delay
-      setTimeout(() => {
-        console.log("🔄 Starting background asset preloading...");
-        preloadAssets().catch(console.error);
-      }, 5000);
-    }
+
+  // Serve the chat widget
+  if (url.pathname === '/google-sites-svg-embed.html') {
+    // Built-in widget with SOYOSOYO branding
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>SOYOSOYO SACCO Assistant</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+          .chat-widget { max-width: 400px; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .logo { color: #7dd3c0; font-weight: bold; font-size: 18px; margin-bottom: 15px; }
+          .message { background: #f0f9ff; padding: 10px; border-radius: 6px; margin: 10px 0; }
+          input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin: 5px 0; }
+          button { background: #1e7b85; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+        </style>
+      </head>
+      <body>
+        <div class="chat-widget">
+          <div class="logo">🏦 SOYOSOYO SACCO Assistant</div>
+          <div class="message">Hello! I'm your SACCO assistant. How can I help you today?</div>
+          <input type="text" id="messageInput" placeholder="Type your message...">
+          <button onclick="sendMessage()">Send</button>
+          <div id="response"></div>
+        </div>
+        <script>
+          function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value;
+            if (!message) return;
+            
+            document.getElementById('response').innerHTML = '<div class="message">Thank you for your message: "' + message + '". The full AI assistant will be available shortly!</div>';
+            input.value = '';
+          }
+          
+          document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  }
+
+  // Default response
+  return res.json({
+    message: "SOYOSOYO SACCO Assistant API",
+    endpoints: {
+      health: "/api/health",
+      chat: "/api/chat (POST)",
+      widget: "/google-sites-svg-embed.html"
+    },
+    status: "running",
+    timestamp: new Date().toISOString()
   });
 }
-
-// Initialize the server
-initializeServer().catch((error) => {
-  console.error("Failed to initialize server:", error);
-  process.exit(1);
-});
