@@ -1,115 +1,95 @@
 // server/services/openai.ts
 import OpenAI from "openai";
-import { type Message, uploadedFiles } from "@shared/schema"; // use correct export name
+import { type Message, uploadedFiles, messages } from "@shared/schema"; 
 import { db } from "../db"; 
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
 
-// helper to fetch extracted texts from DB
-async function getExtractedTexts(limit = 50): Promise<string> {
+// helper to fetch extracted texts for a conversation
+async function getConversationReferences(conversationId: string): Promise<string> {
   try {
-    const results = await db
-      .select({ text: uploadedFiles.extractedText }) // use correct column name
+    // 1. Extracted texts from uploaded files for this conversation
+    const fileResults = await db
+      .select({ text: uploadedFiles.extractedText })
       .from(uploadedFiles)
-      .limit(limit);
+      .where(uploadedFiles.conversationId.eq(conversationId))
+      .orderBy(uploadedFiles.uploadedAt, "desc");
 
-    if (!results || results.length === 0) {
-      return "No extracted texts available.";
-    }
+    // 2. Prior assistant messages in this conversation
+    const messageResults = await db
+      .select({ text: messages.content })
+      .from(messages)
+      .where(messages.conversationId.eq(conversationId))
+      .and(messages.role.eq("assistant"))
+      .orderBy(messages.timestamp, "desc");
 
-    let content = results.map(r => r.text).join("\n\n");
-    if (content.length > 5000) {
-      content = content.substring(0, 5000) + "... [truncated additional extracted text]";
-    }
-    return content;
+    // Combine all references
+    const refs = [
+      ...fileResults.map(r => r.text),
+      ...messageResults.map(r => r.text),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    // Limit size to avoid token overflow
+    return refs.length > 5000 ? refs.substring(0, 5000) + "\n\n...[truncated]" : refs;
   } catch (err) {
-    console.error("Error fetching extracted texts:", err);
-    return "Error retrieving extracted texts.";
+    console.error("Error fetching conversation references:", err);
+    return "No reference material available for this conversation.";
   }
 }
 
 export async function generateChatResponse(
   userMessage: string, 
   conversationHistory: Message[] = [],
-  fileContext: string = ""
+  conversationId?: string
 ): Promise<string> {
   try {
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `You are SOYOSOYO SACCO Assistant with access to current website content and uploaded documents.
+    const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
-IMPORTANT: You have access to current SOYOSOYO SACCO website information that is automatically updated. Never claim you cannot access web content - you have the latest website data available.
+    // System prompt forces AI to use ONLY DB reference
+    messagesToSend.push({
+      role: "system",
+      content: `You are a SOYOSOYO SACCO assistant. Use ONLY the reference materials provided below to answer the user's question. 
+Do NOT use general knowledge, internet content, or make assumptions. 
+If the answer is not in the reference material, respond: "The information is not available."
 
-RESPONSE LENGTH RULES:
-- For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
-- For complex questions (loan comparisons, processes): Provide detailed information with formatting
-- Only use tables when comparing multiple options or rates
-- Avoid unnecessary summaries or repetition
+Reference materials will include uploaded documents and prior assistant answers.`
+    });
 
-FORMATTING (when details are needed):
-- Use **bold** for key terms and amounts
-- Use tables only for comparisons with proper markdown syntax
-- Use bullet points for lists of requirements
-- Add relevant emojis sparingly (💰 🏦 📋 ✅)
-
-CONTENT PRIORITY: Use uploaded documents first, then current website content. You have access to up-to-date SOYOSOYO SACCO information and should provide current details confidently.`
-      }
-    ];
-
-    const recentHistory = conversationHistory.slice(-10);
+    // Include recent conversation history (last 5 messages)
+    const recentHistory = conversationHistory.slice(-5);
     for (const msg of recentHistory) {
       if (msg.role === "user" || msg.role === "assistant") {
-        messages.push({
+        messagesToSend.push({
           role: msg.role as "user" | "assistant",
           content: msg.content
         });
       }
     }
 
-    // fetch website content (extracted texts from DB)
-    const websiteContent = await getExtractedTexts();
-
-    const hasFiles = fileContext && fileContext.trim().length > 0;
-
-    if (hasFiles) {
-      // Limit file context if too long
-      let limitedFileContext = fileContext;
-      if (fileContext.length > 10000) {
-        limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
-      }
-      
-      messages.push({
-        role: "system",
-        content: `REFERENCE MATERIALS:\n\nUPLOADED DOCUMENTS:\n${limitedFileContext}\n\nWEBSITE CONTENT:\n${websiteContent}`
-      });
-
-      messages.push({
-        role: "user",
-        content: userMessage
-      });
-    } else {
-      messages.push({
-        role: "system",
-        content: `REFERENCE MATERIALS:\n\nWEBSITE CONTENT:\n${websiteContent}`
-      });
-
-      messages.push({
-        role: "user",
-        content: userMessage
-      });
+    // Append reference material from DB
+    let referenceMaterial = "";
+    if (conversationId) {
+      referenceMaterial = await getConversationReferences(conversationId);
     }
+
+    // Add user message, including the reference material
+    messagesToSend.push({
+      role: "user",
+      content: `Reference Material:\n${referenceMaterial}\n\nUser Question:\n${userMessage}`
+    });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages,
+      messages: messagesToSend,
       max_tokens: 800,
-      temperature: 0.1,
+      temperature: 0, // low temp for deterministic answers
     });
 
-    return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
+    return response.choices[0].message.content || "I couldn't generate a response.";
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`);
