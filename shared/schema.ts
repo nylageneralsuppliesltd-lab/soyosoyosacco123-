@@ -22,19 +22,29 @@ export const messages = pgTable("messages", {
   metadata: jsonb("metadata").default("{}"),
 });
 
-// Uploaded Files Table (Fixed to Match Your DB: size column, no text_length)
+// Uploaded Files Table
 export const uploadedFiles = pgTable("uploaded_files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id", { length: 36 }).references(() => conversations.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),  // Matches DB: original_name
+  originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
-  size: integer("size").notNull(),  // Matches DB: size (integer for bytes)
-  extractedText: text("extracted_text"),  // Matches DB: extracted_text
+  size: integer("size").notNull(),
+  extractedText: text("extracted_text"),
   metadata: jsonb("metadata").default("{}"),
   content: text("content"),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),  // Matches DB: uploaded_at
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
+});
+
+// Summaries Cache Table (New for Caching)
+export const summaries = pgTable("summaries", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id", { length: 36 }).references(() => uploadedFiles.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  hash: text("hash").notNull().unique(),  // SHA256 of content
+  summary: text("summary").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // API Logs Table
@@ -66,6 +76,17 @@ export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
     fields: [uploadedFiles.conversationId],
     references: [conversations.id],
   }),
+  summaries: one(summaries, {
+    fields: [uploadedFiles.id],
+    references: [summaries.fileId],
+  }),
+}));
+
+export const summariesRelations = relations(summaries, ({ one }) => ({
+  file: one(uploadedFiles, {
+    fields: [summaries.fileId],
+    references: [uploadedFiles.id],
+  }),
 }));
 
 // Zod Schemas
@@ -87,6 +108,11 @@ export const insertFileSchema = createInsertSchema(uploadedFiles, { driver: "pg"
   processed: true,
 });
 
+export const insertSummarySchema = createInsertSchema(summaries, { driver: "pg" }).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertApiLogSchema = createInsertSchema(apiLogs, { driver: "pg" }).omit({
   id: true,
   timestamp: true,
@@ -101,6 +127,9 @@ export type InsertMessage = typeof insertMessageSchema.$inferInsert;
 
 export type UploadedFile = typeof uploadedFiles.$inferSelect;
 export type InsertFile = typeof insertFileSchema.$inferInsert;
+
+export type Summary = typeof summaries.$inferSelect;
+export type InsertSummary = typeof insertSummarySchema.$inferInsert;
 
 export type ApiLog = typeof apiLogs.$inferSelect;
 export type InsertApiLog = typeof insertApiLogSchema.$inferInsert;
