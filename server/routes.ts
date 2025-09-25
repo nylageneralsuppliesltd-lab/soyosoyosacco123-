@@ -12,46 +12,44 @@ const upload = multer({ storage: multer.memoryStorage() });
 export async function registerRoutes(app: express.Express) {
   const router = express.Router();
 
-  // Health check endpoint
+  // Health check endpoint for deployment
   router.get("/health", (req, res) => {
-    res.status(200).json({
-      status: "healthy",
+    res.status(200).json({ 
+      status: "healthy", 
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: process.env.NODE_ENV || "development",
+      environment: process.env.NODE_ENV || "development"
     });
   });
 
-  // Simple root check
+  // Simple health check at root for basic deployment checks
   router.get("/", (req, res, next) => {
-    if (req.headers.accept && req.headers.accept.includes("application/json")) {
+    // If this is an API health check (detected by Accept header), respond with JSON
+    if (req.headers.accept && req.headers.accept.includes('application/json')) {
       return res.status(200).json({ status: "ok" });
     }
+    // Otherwise, let it fall through to serve the frontend
     next();
   });
 
-  // Prevent static assets from hitting API routes
+  // Ensure all API routes are properly prefixed to avoid conflicts with Vite
   router.use((req, res, next) => {
-    if (
-      req.path.startsWith("/@") ||
-      req.path.startsWith("/src/") ||
-      req.path.startsWith("/node_modules/") ||
-      req.path.includes(".js") ||
-      req.path.includes(".css") ||
-      req.path.includes(".tsx") ||
-      req.path.includes(".ts")
-    ) {
+    // Skip middleware for static assets and Vite HMR
+    if (req.path.startsWith('/@') || 
+        req.path.startsWith('/src/') || 
+        req.path.startsWith('/node_modules/') ||
+        req.path.includes('.js') || 
+        req.path.includes('.css') ||
+        req.path.includes('.tsx') ||
+        req.path.includes('.ts')) {
       return next();
     }
     next();
   });
 
-  // ========= FILE UPLOAD =========
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
-      console.log("DEBUG: /api/upload called");
       if (!req.file) {
-        console.log("DEBUG: No file uploaded");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
@@ -61,12 +59,10 @@ export async function registerRoutes(app: express.Express) {
       const mimeType = file.mimetype;
       const size = file.size;
 
-      const { extractedText, analysis } = await processUploadedFile(
-        file.buffer,
-        file.originalname,
-        mimeType
-      );
+      // Process file
+      const { extractedText, analysis } = await processUploadedFile(file.buffer, file.originalname, mimeType);
 
+      // Store file metadata and content in PostgreSQL
       const fileData = insertFileSchema.parse({
         conversationId,
         filename,
@@ -82,35 +78,21 @@ export async function registerRoutes(app: express.Express) {
         content: file.buffer.toString("base64"),
       });
 
-      console.log("DEBUG: Upload successful");
-      res.json({
-        id: createdFile.id,
-        filename,
-        originalName: file.originalname,
-        mimeType,
-        size,
-        analysis,
-      });
+      res.json({ id: createdFile.id, filename, originalName: file.originalname, mimeType, size, analysis });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Failed to process file" });
     }
   });
 
-  // ========= FILE DOWNLOAD =========
   router.get("/api/files/:id", async (req, res) => {
     try {
-      console.log(`DEBUG: Retrieving file ${req.params.id}`);
       const file = await storage.getFile(req.params.id);
       if (!file) {
         return res.status(404).json({ error: "File not found" });
       }
       const [dbFile] = await db
-        .select({
-          content: uploadedFiles.content,
-          mimeType: uploadedFiles.mimeType,
-          originalName: uploadedFiles.originalName,
-        })
+        .select({ content: uploadedFiles.content, mimeType: uploadedFiles.mimeType, originalName: uploadedFiles.originalName })
         .from(uploadedFiles)
         .where(eq(uploadedFiles.id, req.params.id))
         .limit(1);
@@ -129,54 +111,47 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // ========= SYSTEM STATS =========
   router.get("/api/stats", async (req, res) => {
     try {
       const conversations = await storage.getAllConversations();
       const files = await storage.getAllFiles();
       const apiLogs = await storage.getApiLogs();
-
+      
       res.json({
         totalConversations: conversations.length,
         totalFiles: files.length,
         totalApiCalls: apiLogs.length,
         systemStatus: "operational",
-        lastProcessedFile:
-          files.length > 0 ? files[files.length - 1].filename : null,
-        lastActivity:
-          apiLogs.length > 0 ? apiLogs[apiLogs.length - 1].timestamp : null,
+        lastProcessedFile: files.length > 0 ? files[files.length - 1].filename : null,
+        lastActivity: apiLogs.length > 0 ? apiLogs[apiLogs.length - 1].timestamp : null
       });
     } catch (error) {
       console.error("Stats error:", error);
-      res.status(500).json({
+      res.status(500).json({ 
         error: "Failed to fetch stats",
         details: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
+        stack: error instanceof Error ? error.stack : undefined
       });
     }
   });
 
-  // ========= DEBUG =========
   router.get("/api/debug", async (req, res) => {
     try {
       res.json({
         environment: process.env.NODE_ENV,
         hasDatabase: !!process.env.DATABASE_URL,
-        databaseHost: process.env.DATABASE_URL
-          ? new URL(process.env.DATABASE_URL).hostname
-          : null,
+        databaseHost: process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : null,
         timestamp: new Date().toISOString(),
-        nodeVersion: process.version,
+        nodeVersion: process.version
       });
     } catch (error) {
-      res.status(500).json({
-        error: "Debug failed",
-        details: error instanceof Error ? error.message : "Unknown error",
+      res.status(500).json({ 
+        error: "Debug failed", 
+        details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
 
-  // ========= CONVERSATIONS =========
   router.get("/api/conversations", async (req, res) => {
     try {
       const conversations = await storage.getAllConversations();
@@ -187,7 +162,6 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // ========= FILE LIST =========
   router.get("/api/files", async (req, res) => {
     try {
       const files = await storage.getAllFiles();
@@ -198,63 +172,58 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // ========= CHAT =========
   router.post("/api/chat", async (req, res) => {
-    let fileContext = ""; // <-- define early to avoid ReferenceError
     try {
-      console.log("DEBUG: /api/chat called", req.body);
-
+      console.log("DEBUG: /api/chat called");
       const { message, conversationId, includeContext = true } = req.body;
+      
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
       }
 
+      // Create conversation if it doesn't exist
       let conversation;
       if (conversationId) {
-        console.log("DEBUG: Looking up conversation", conversationId);
         conversation = await storage.getConversation(conversationId);
       }
-
+      
       if (!conversation) {
-        console.log("DEBUG: Creating new conversation");
         conversation = await storage.createConversation({
-          title:
-            message.substring(0, 50) +
-            (message.length > 50 ? "..." : ""),
+          title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
         });
       }
 
-      console.log("DEBUG: Saving user message");
+      // Save user message
       await storage.createMessage({
         conversationId: conversation.id,
         content: message,
         role: "user",
       });
 
-      console.log("DEBUG: Fetching conversation history");
+      // Get conversation history
       const history = await storage.getMessagesByConversation(conversation.id);
-
+      
+      // Get file context if requested
+      let fileContext = "";
       if (includeContext) {
-        console.log("DEBUG: Fetching all files");
         const files = await storage.getAllFiles();
-        const relevantFiles = files.filter(
-          (f: UploadedFile) => f.extractedText?.length > 0
-        );
-        fileContext = relevantFiles
-          .map((f: UploadedFile) => `=== ${f.originalName} ===\n${f.extractedText}`)
-          .join("\n\n");
-        console.log("DEBUG: File context length:", fileContext.length);
+        const relevantFiles = files.filter((f: UploadedFile) => f.extractedText && f.extractedText.length > 0);
+        
+        console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
+        
+        if (relevantFiles.length > 0) {
+          fileContext = relevantFiles
+            .map((f: UploadedFile) => `=== ${f.originalName} ===\n${f.extractedText}`)
+            .join('\n\n');
+          console.log(`DEBUG: File context length: ${fileContext.length} characters`);
+        }
       }
 
-      console.log("DEBUG: Calling OpenAI with message + history");
+      // Generate AI response using the OpenAI service
       const { generateChatResponse } = await import("./services/openai");
-      const aiResponse = await generateChatResponse(
-        message,
-        history,
-        fileContext
-      );
-
-      console.log("DEBUG: Saving assistant response");
+      const aiResponse = await generateChatResponse(message, history, fileContext);
+      
+      // Save assistant message
       const assistantMessage = await storage.createMessage({
         conversationId: conversation.id,
         content: aiResponse,
@@ -270,56 +239,62 @@ export async function registerRoutes(app: express.Express) {
       console.error("Chat error details:", {
         message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : "No stack",
-        conversationId: req.body?.conversationId,
-        userMessage: req.body?.message,
-        fileContextLength: fileContext?.length || 0,
+        conversationId: req.body.conversationId,
+        userMessage: req.body.message,
+        fileContextLength: fileContext.length
       });
-      res
-        .status(500)
-        .json({ error: "Failed to process chat message", details: String(error) });
+      res.status(500).json({ error: "Failed to process chat message" });
     }
   });
 
-  // ========= IMAGE GENERATION =========
   router.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt, conversationId } = req.body;
+      
       if (!prompt) {
         return res.status(400).json({ error: "Image prompt is required" });
       }
 
+      // Generate image using OpenAI DALL-E
       const { generateImage } = await import("./services/openai");
       const imageUrl = await generateImage(prompt, conversationId);
-
+      
+      // Log the image generation
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 200,
-        responseTime: 0,
+        responseTime: 0, // We don't track this for images yet
         success: true,
-        metadata: { prompt, conversationId, imageUrl },
+        metadata: { prompt, conversationId, imageUrl }
       });
 
-      res.json({ imageUrl, prompt, success: true });
+      res.json({
+        imageUrl,
+        prompt,
+        success: true
+      });
     } catch (error) {
       console.error("Image generation error:", error);
+      
+      // Log the failed image generation
       await storage.createApiLog({
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 500,
         responseTime: 0,
         success: false,
-        metadata: {
-          prompt: req.body.prompt,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
+        metadata: { prompt: req.body.prompt, error: error instanceof Error ? error.message : "Unknown error" }
       });
-      res.status(500).json({
+      
+      res.status(500).json({ 
         error: "Failed to generate image",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
+
+  // Web scraping routes removed to fix deployment issues
 
   app.use("/", router);
   return app;
