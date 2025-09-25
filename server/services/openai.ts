@@ -1,8 +1,7 @@
 // server/services/openai.ts
 import OpenAI from "openai";
-import { type Message } from "@shared/schema";
+import { type Message, uploadedFiles } from "@shared/schema"; // use correct export name
 import { db } from "../db"; 
-import { uploaded_files } from "@shared/schema"; // updated to correct table
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
@@ -12,8 +11,8 @@ const openai = new OpenAI({
 async function getExtractedTexts(limit = 50): Promise<string> {
   try {
     const results = await db
-      .select({ text: uploaded_files.extracted_text })
-      .from(uploaded_files)
+      .select({ text: uploadedFiles.extractedText }) // use correct column name
+      .from(uploadedFiles)
       .limit(limit);
 
     if (!results || results.length === 0) {
