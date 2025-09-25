@@ -1,13 +1,10 @@
-// shared/schema.ts
 import { pgTable, varchar, text, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-// ========================
 // Conversations Table
-// ========================
 export const conversations = pgTable("conversations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull().default("New Conversation"),
@@ -15,41 +12,32 @@ export const conversations = pgTable("conversations", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// ========================
 // Messages Table
-// ========================
 export const messages = pgTable("messages", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id", { length: 36 })
-    .notNull()
-    .references(() => conversations.id, { onDelete: "cascade" }),
+  conversationId: varchar("conversation_id", { length: 36 }).notNull().references(() => conversations.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   role: text("role").notNull().$type<"user" | "assistant">(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   metadata: jsonb("metadata").default("{}"),
 });
 
-// ========================
-// Uploaded Files Table (Match DB)
-// ========================
+// Uploaded Files Table (Fixed to Match Your DB: size column, no text_length)
 export const uploadedFiles = pgTable("uploaded_files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id", { length: 36 })
-    .references(() => conversations.id, { onDelete: "set null" }),
+  conversationId: varchar("conversation_id", { length: 36 }).references(() => conversations.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(), // matches DB column
+  originalName: text("original_name").notNull(),  // Matches DB: original_name
   mimeType: text("mime_type").notNull(),
-  textLength: integer("text_length").notNull(), // ✅ keep as text_length (server DB)
-  extractedText: text("extracted_text"),
+  size: integer("size").notNull(),  // Matches DB: size (integer for bytes)
+  extractedText: text("extracted_text"),  // Matches DB: extracted_text
   metadata: jsonb("metadata").default("{}"),
   content: text("content"),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),  // Matches DB: uploaded_at
   processed: boolean("processed").default(false).notNull(),
 });
 
-// ========================
 // API Logs Table
-// ========================
 export const apiLogs = pgTable("api_logs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   endpoint: text("endpoint").notNull(),
@@ -60,9 +48,7 @@ export const apiLogs = pgTable("api_logs", {
   errorMessage: text("error_message"),
 });
 
-// ========================
 // Relations
-// ========================
 export const conversationsRelations = relations(conversations, ({ many }) => ({
   messages: many(messages),
   files: many(uploadedFiles),
@@ -82,9 +68,7 @@ export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
   }),
 }));
 
-// ========================
 // Zod Schemas
-// ========================
 export const insertConversationSchema = createInsertSchema(conversations, { driver: "pg" }).omit({
   id: true,
   createdAt: true,
@@ -108,9 +92,7 @@ export const insertApiLogSchema = createInsertSchema(apiLogs, { driver: "pg" }).
   timestamp: true,
 });
 
-// ========================
 // Types
-// ========================
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof insertConversationSchema.$inferInsert;
 
@@ -123,9 +105,7 @@ export type InsertFile = typeof insertFileSchema.$inferInsert;
 export type ApiLog = typeof apiLogs.$inferSelect;
 export type InsertApiLog = typeof insertApiLogSchema.$inferInsert;
 
-// ========================
 // Chat Schemas
-// ========================
 export const chatRequestSchema = z.object({
   message: z.string().min(1, "Message is required"),
   conversationId: z.string().optional(),
