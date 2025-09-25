@@ -1,10 +1,9 @@
 import express from "express";
 import { processUploadedFile } from "./services/fileProcessor";
-import { storage } from "./storage";
 import { v4 as uuidv4 } from "uuid";
 import multer from "multer";
 import { insertFileSchema, uploadedFiles, type UploadedFile } from "../shared/schema";
-import { db } from "./storage";
+import { db } from "./db"; // Direct import from db.ts, bypassing storage.ts
 import { eq } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -49,9 +48,7 @@ export async function registerRoutes(app: express.Express) {
 
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
-      console.log("DEBUG: /api/upload called");
       if (!req.file) {
-        console.log("DEBUG: No file uploaded");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
@@ -75,13 +72,14 @@ export async function registerRoutes(app: express.Express) {
         metadata: { analysis },
       });
 
-      const createdFile = await storage.createFile({
+      // Direct insert using db (bypassing storage.ts for reliability)
+      const createdFile = await db.insert(uploadedFiles).values({
         ...fileData,
+        id: uuidv4(),
         content: file.buffer.toString("base64"),
-      });
+      }).returning();
 
-      console.log("DEBUG: Upload successful");
-      res.json({ id: createdFile.id, filename, originalName: file.originalname, mimeType, size, analysis });
+      res.json({ id: createdFile[0].id, filename, originalName: file.originalname, mimeType, size, analysis });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Failed to process file" });
@@ -90,11 +88,6 @@ export async function registerRoutes(app: express.Express) {
 
   router.get("/api/files/:id", async (req, res) => {
     try {
-      console.log(`DEBUG: Retrieving file ${req.params.id}`);
-      const file = await storage.getFile(req.params.id);
-      if (!file) {
-        return res.status(404).json({ error: "File not found" });
-      }
       const [dbFile] = await db
         .select({ content: uploadedFiles.content, mimeType: uploadedFiles.mimeType, originalName: uploadedFiles.originalName })
         .from(uploadedFiles)
@@ -117,9 +110,9 @@ export async function registerRoutes(app: express.Express) {
 
   router.get("/api/stats", async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
-      const files = await storage.getAllFiles();
-      const apiLogs = await storage.getApiLogs();
+      const conversations = await db.select().from(conversations);
+      const files = await db.select().from(uploadedFiles);
+      const apiLogs = await db.select().from(apiLogs);
       
       res.json({
         totalConversations: conversations.length,
@@ -158,7 +151,7 @@ export async function registerRoutes(app: express.Express) {
 
   router.get("/api/conversations", async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
+      const conversations = await db.select().from(conversations);
       res.json(conversations);
     } catch (error) {
       console.error("Conversations error:", error);
@@ -168,7 +161,7 @@ export async function registerRoutes(app: express.Express) {
 
   router.get("/api/files", async (req, res) => {
     try {
-      const files = await storage.getAllFiles();
+      const files = await db.select().from(uploadedFiles);
       res.json(files);
     } catch (error) {
       console.error("Files error:", error);
@@ -187,29 +180,30 @@ export async function registerRoutes(app: express.Express) {
       // Create conversation if it doesn't exist
       let conversation;
       if (conversationId) {
-        conversation = await storage.getConversation(conversationId);
+        conversation = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
       }
       
-      if (!conversation) {
-        conversation = await storage.createConversation({
+      if (!conversation.length) {
+        conversation = await db.insert(conversations).values({
           title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
-        });
+        }).returning();
       }
 
       // Save user message
-      await storage.createMessage({
-        conversationId: conversation.id,
+      await db.insert(messages).values({
+        conversationId: conversation[0].id,
         content: message,
         role: "user",
+        timestamp: new Date(),
       });
 
       // Get conversation history
-      const history = await storage.getMessagesByConversation(conversation.id);
+      const history = await db.select().from(messages).where(eq(messages.conversationId, conversation[0].id)).orderBy(messages.timestamp);
       
       // Get file context if requested
       let fileContext = "";
       if (includeContext) {
-        const files = await storage.getAllFiles();
+        const files = await db.select().from(uploadedFiles);
         const relevantFiles = files.filter((f: UploadedFile) => f.extractedText && f.extractedText.length > 0);
         
         console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
@@ -227,16 +221,17 @@ export async function registerRoutes(app: express.Express) {
       const aiResponse = await generateChatResponse(message, history, fileContext);
       
       // Save assistant message
-      const assistantMessage = await storage.createMessage({
-        conversationId: conversation.id,
+      await db.insert(messages).values({
+        conversationId: conversation[0].id,
         content: aiResponse,
         role: "assistant",
+        timestamp: new Date(),
       });
 
       res.json({
         response: aiResponse,
-        conversationId: conversation.id,
-        messageId: assistantMessage.id,
+        conversationId: conversation[0].id,
+        messageId: uuidv4(),
       });
     } catch (error) {
       console.error("Chat error:", error);
@@ -257,11 +252,11 @@ export async function registerRoutes(app: express.Express) {
       const imageUrl = await generateImage(prompt, conversationId);
       
       // Log the image generation
-      await storage.createApiLog({
+      await db.insert(apiLogs).values({
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 200,
-        responseTime: 0, // We don't track this for images yet
+        responseTime: 0,
         success: true,
         metadata: { prompt, conversationId, imageUrl }
       });
@@ -275,7 +270,7 @@ export async function registerRoutes(app: express.Express) {
       console.error("Image generation error:", error);
       
       // Log the failed image generation
-      await storage.createApiLog({
+      await db.insert(apiLogs).values({
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 500,
@@ -290,8 +285,6 @@ export async function registerRoutes(app: express.Express) {
       });
     }
   });
-
-  // Web scraping routes removed to fix deployment issues
 
   app.use("/", router);
   return app;
