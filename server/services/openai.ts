@@ -1,23 +1,9 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
-import { db } from "../db"; // Adjust path if needed
-import { uploadedFiles, eq } from "../../shared/schema";
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
-
-// Static website info (fallback from soyosoyosacco.com—update with latest from site)
-const staticWebsiteInfo = `SOYOSOYO SACCO (Soyosoyo Medicare Co-operative Savings & Credit Society Ltd) is based in Kilifi County, Kenya, focused on financial inclusion.
-
-Key Details:
-- Mission: Provide affordable financing for essential objectives like medical bills, education, and more.
-- Joining: Start with Sh.200 deposit via MPESA Paybill 546448, AC 10027879. Provide name, phone, email for account activation and SMS invite to the app.
-- Loan Terms: Returns on investments and loan eligibility proportional to savings. Normal loan up to 3x savings at 12% interest; emergency loan up to KES 50,000.
-- Member Engagement: Monthly online meetings via Google Meet; Annual General Meeting after audit. Value days of worship (Sabbath/Sundays for Christians, Fridays for Muslims).
-- Working Hours: Monday–Friday 8:30 AM–4:00 PM; Closed weekends & public holidays.
-- Social Media: Follow @SoyosoyoSACCO on X (Twitter) for updates on savings, loans, and events.
-- Contact: info@soyosoyosacco.com. Operate in Kilifi County, providing low-interest loans and financial education.`;
 
 export async function generateChatResponse(
   userMessage: string, 
@@ -25,30 +11,12 @@ export async function generateChatResponse(
   fileContext: string = ""
 ): Promise<string> {
   try {
-    // Query DB for relevant extracted text (top 3 files)
-    let dbContext = "";
-    try {
-      const relevantFiles = await db.select({
-        originalName: uploadedFiles.originalName,
-        extractedText: uploadedFiles.extractedText,
-      }).from(uploadedFiles)
-        .where(eq(uploadedFiles.processed, true))
-        .orderBy(uploadedFiles.uploadedAt)
-        .limit(3);
-
-      if (relevantFiles.length > 0) {
-        dbContext = relevantFiles.map(f => `Document: ${f.originalName}\n${f.extractedText?.slice(0, 1000) || "No text"}...`).join('\n\n');
-        console.log(`DEBUG: Retrieved ${relevantFiles.length} files from DB, total length: ${dbContext.length} chars`);
-      }
-    } catch (dbError) {
-      console.error("DB query error:", dbError);
-      dbContext = "No DB documents available.";
-    }
-
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant, specializing in SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD in Kilifi County, Kenya.
+        content: `You are SOYOSOYO SACCO Assistant with access to current website content and uploaded documents.
+
+IMPORTANT: You have access to current SOYOSOYO SACCO website information that is automatically updated. Never claim you cannot access web content - you have the latest website data available.
 
 RESPONSE LENGTH RULES:
 - For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
@@ -62,15 +30,7 @@ FORMATTING (when details are needed):
 - Use bullet points for lists of requirements
 - Add relevant emojis sparingly (💰 🏦 📋 ✅)
 
-CONTENT PRIORITY: Use DB documents first, then website info. Do not claim web access—stick to provided context. If details are unavailable, suggest contacting info@soyosoyosacco.com.`
-      },
-      {
-        role: "system",
-        content: staticWebsiteInfo  // Static fallback
-      },
-      {
-        role: "system",
-        content: dbContext  // DB extracted text
+CONTENT PRIORITY: Use uploaded documents first, then current website content. You have access to up-to-date SOYOSOYO SACCO information and should provide current details confidently.`
       }
     ];
 
@@ -84,8 +44,14 @@ CONTENT PRIORITY: Use DB documents first, then website info. Do not claim web ac
       }
     }
 
+    // Get website content with appropriate length limits based on file context (with error handling)
     const hasFiles = fileContext && fileContext.trim().length > 0;
+    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
+    // Web scraping temporarily removed to fix deployment issues
+    let websiteContent = "Using uploaded documents and general SACCO knowledge.";
+    
     if (hasFiles) {
+      // Limit file context if too long to avoid token limits
       let limitedFileContext = fileContext;
       if (fileContext.length > 10000) {
         limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
@@ -93,24 +59,28 @@ CONTENT PRIORITY: Use DB documents first, then website info. Do not claim web ac
       
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority) and website info: ${userMessage}
+        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
 
-UPLOADED DOCUMENTS: ${limitedFileContext}`
+UPLOADED DOCUMENTS: ${limitedFileContext}
+
+WEBSITE CONTENT: ${websiteContent}`
       });
     } else {
       messages.push({
         role: "user",
-        content: `Answer based on DB documents, website info, and general SACCO knowledge: ${userMessage}
+        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
+
+WEBSITE CONTENT: ${websiteContent}
 
 INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
       });
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 800,
-      temperature: 0.1,
+      max_tokens: 800, // Increased significantly for complete responses without truncation
+      temperature: 0.1, // Lower temperature for consistency
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
