@@ -1,11 +1,35 @@
 // server/services/openai.ts
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
-// Removed direct import to prevent deployment issues - using dynamic import instead
+import { db } from "../db"; 
+import { uploaded_files } from "@shared/schema"; // updated to correct table
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
+
+// helper to fetch extracted texts from DB
+async function getExtractedTexts(limit = 50): Promise<string> {
+  try {
+    const results = await db
+      .select({ text: uploaded_files.extracted_text })
+      .from(uploaded_files)
+      .limit(limit);
+
+    if (!results || results.length === 0) {
+      return "No extracted texts available.";
+    }
+
+    let content = results.map(r => r.text).join("\n\n");
+    if (content.length > 5000) {
+      content = content.substring(0, 5000) + "... [truncated additional extracted text]";
+    }
+    return content;
+  } catch (err) {
+    console.error("Error fetching extracted texts:", err);
+    return "Error retrieving extracted texts.";
+  }
+}
 
 export async function generateChatResponse(
   userMessage: string, 
@@ -46,43 +70,44 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
       }
     }
 
-    // Get website content with appropriate length limits based on file context (with error handling)
+    // fetch website content (extracted texts from DB)
+    const websiteContent = await getExtractedTexts();
+
     const hasFiles = fileContext && fileContext.trim().length > 0;
-    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
-    // Web scraping temporarily removed to fix deployment issues
-    let websiteContent = "Using uploaded documents and general SACCO knowledge.";
-    
+
     if (hasFiles) {
-      // Limit file context if too long to avoid token limits
+      // Limit file context if too long
       let limitedFileContext = fileContext;
       if (fileContext.length > 10000) {
         limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
       }
       
       messages.push({
+        role: "system",
+        content: `REFERENCE MATERIALS:\n\nUPLOADED DOCUMENTS:\n${limitedFileContext}\n\nWEBSITE CONTENT:\n${websiteContent}`
+      });
+
+      messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
-
-UPLOADED DOCUMENTS: ${limitedFileContext}
-
-WEBSITE CONTENT: ${websiteContent}`
+        content: userMessage
       });
     } else {
       messages.push({
+        role: "system",
+        content: `REFERENCE MATERIALS:\n\nWEBSITE CONTENT:\n${websiteContent}`
+      });
+
+      messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
-
-WEBSITE CONTENT: ${websiteContent}
-
-INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
+        content: userMessage
       });
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      model: "gpt-4o",
       messages,
-      max_tokens: 800, // Increased significantly for complete responses without truncation
-      temperature: 0.1, // Lower temperature for consistency
+      max_tokens: 800,
+      temperature: 0.1,
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
@@ -92,6 +117,7 @@ INSTRUCTION: Answer appropriately - be concise for simple questions, detailed fo
   }
 }
 
+// unchanged analyzeFileContent
 export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
@@ -115,11 +141,11 @@ export async function analyzeFileContent(content: string, fileName: string, mime
   }
 }
 
+// unchanged generateImage
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
     
-    // Create SACCO-themed prompt
     const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
     
     const response = await openai.images.generate({
