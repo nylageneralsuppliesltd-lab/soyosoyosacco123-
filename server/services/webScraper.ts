@@ -1,4 +1,4 @@
-import { generateChatResponse } from "./openai";
+// Removed circular import dependency to fix production build
 
 interface ScrapedContent {
   url: string;
