@@ -17,7 +17,7 @@ export async function generateChatResponse(
         role: "system",
         content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
 
-IMPORTANT: SEARCH ALL UPLOADED DOCUMENTS below and quote/summarize from relevant ones for EVERY answer. If the answer is in multiple documents, reference each (e.g., "From By Laws: [quote]; From Loan Policy: [details]"). Never say 'not mentioned' if info is in any document—scan all. Use general knowledge only if no documents match. Do not claim web access.
+IMPORTANT: ALWAYS use the UPLOADED DOCUMENTS as your PRIMARY SOURCE. Search ALL documents and quote/summarize from relevant ones for EVERY answer. If the answer is in multiple documents, reference each (e.g., "From By Laws: [quote]; From Loan Policy: [details]"). Never say 'not mentioned' if info is in ANY document—scan all. Do not use general knowledge if documents are available. Do not claim web access or invent details.
 
 RESPONSE LENGTH RULES:
 - For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
@@ -31,7 +31,7 @@ FORMATTING (when details are needed):
 - Use bullet points for lists of requirements
 - Add relevant emojis sparingly (💰 🏦 📋 ✅)
 
-CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If details are unavailable in documents, suggest contacting info@soyosoyosacco.com.`
+CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If details are unavailable in documents, say "Not found in uploaded documents. Please upload more or contact info@soyosoyosacco.com."`
       }
     ];
 
@@ -52,17 +52,17 @@ CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If de
     let websiteContent = "Using uploaded documents and general SACCO knowledge.";
     
     if (hasFiles) {
-      // Limit file context if too long to avoid token limits
+      // Limit file context if too long to avoid token limits (truncate to 4k chars for focus)
       let limitedFileContext = fileContext;
-      if (fileContext.length > 10000) {
-        limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
+      if (fileContext.length > 4000) {
+        limitedFileContext = fileContext.substring(0, 4000) + "... [More documents available - ask for details]";
       }
       
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
+        content: `Answer based on SOYOSOYO SACCO documents (priority). Search ALL documents and quote from relevant ones: ${userMessage}
 
-UPLOADED DOCUMENTS (SEARCH ALL): ${limitedFileContext}
+UPLOADED DOCUMENTS (PRIMARY SOURCE - SCAN ALL): ${limitedFileContext}
 
 WEBSITE CONTENT: ${websiteContent}`
       });
