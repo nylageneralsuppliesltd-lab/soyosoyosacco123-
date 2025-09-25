@@ -240,7 +240,7 @@ export async function registerRoutes(app: express.Express) {
         stack: error instanceof Error ? error.stack : "No stack",
         conversationId: req.body.conversationId,
         userMessage: req.body.message,
-        fileContextLength: fileContext.length
+        fileContextLength: fileContext ? fileContext.length : 0  // Safe check
       });
       res.status(500).json({ error: "Failed to process chat message" });
     }
