@@ -16,4 +16,13 @@ npx esbuild server/index.ts server/routes.ts server/services/openai.ts server/se
 
 # Verify build outputs
 if [ ! -f "dist/index.js" ]; then
- echo 
+    echo "❌ Backend build failed"
+    exit 1
+fi
+
+if [ ! -d "dist/public" ]; then
+    echo "❌ Frontend build failed"
+    exit 1
+fi
+
+echo "✅ Build completed successfully!"
