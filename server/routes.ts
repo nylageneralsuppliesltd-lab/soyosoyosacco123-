@@ -1,136 +1,136 @@
-import { v4 as uuidv4 } from "uuid";
-import multer from "multer";
-import { insertFileSchema, uploadedFiles } from "../shared/schema";
+import express from "express";
+import { v4 as uuid } from "uuid";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { uploadedFiles, insertFileSchema, chatRequestSchema, chatResponseSchema } from "../shared/schema";
 import { processUploadedFile } from "./services/fileProcessor";
+import { eq } from "drizzle-orm";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const router = express.Router();
 
-export async function registerRoutes(app: express.Express) {
-  const router = express.Router();
-
-  // Health check
-  router.get("/health", (req, res) => {
-    res.status(200).json({ 
-      status: "healthy", 
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || "development"
-    });
+router.get("/health", (req, res) => {
+  res.status(200).json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "production"
   });
+});
 
-  // Upload endpoint
-  router.post("/api/upload", upload.single("file"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+router.post("/api/upload", async (req, res) => {
+  try {
+    console.log("DEBUG: /api/upload called");
+    if (!req.files || !Array.isArray(req.files.files)) {
+      console.log("DEBUG: No files uploaded");
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    const results = [];
+    for (const file of req.files.files) {
+      console.log(`DEBUG: Processing ${file.originalname} (${file.mimetype})`);
+      const parsed = insertFileSchema.safeParse({
+        conversationId: req.body.conversationId || uuid(),
+        filename: `${uuid()}-${file.originalname}`,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        extractedText: undefined,
+        metadata: undefined,
+      });
+
+      if (!parsed.success) {
+        console.log(`DEBUG: Schema error: ${JSON.stringify(parsed.error.flatten())}`);
+        return res.status(400).json({ error: parsed.error.flatten() });
       }
 
-      const { conversationId } = req.body;
-      const file = req.file;
-      const filename = `${uuidv4()}-${file.originalname}`;
-      const mimeType = file.mimetype;
-      const size = file.size;
-
-      // Process file
-      const { extractedText, analysis } = await processUploadedFile(file.buffer, file.originalname, mimeType);
-
-      // Store file metadata and content in PostgreSQL
-      const fileData = insertFileSchema.parse({
-        conversationId,
-        filename,
-        originalName: file.originalname,
-        mimeType,
-        size,
-        extractedText,
-        metadata: { analysis },
-      });
+      const { extractedText, analysis } = await processUploadedFile(file.buffer, file.originalname, file.mimetype);
 
       await db.insert(uploadedFiles).values({
-        id: uuidv4(),
-        ...fileData,
+        id: uuid(),
+        ...parsed.data,
+        extractedText,
         content: file.buffer.toString("base64"),
+        uploadedAt: new Date(),
+        processed: !!extractedText,
       });
 
-      res.json({ id: fileData.id, filename, originalName: file.originalname, mimeType, size, analysis });
-    } catch (error) {
-      console.error("Upload error:", error);
-      res.status(500).json({ error: "Failed to process file" });
+      results.push({
+        id: parsed.data.id,
+        filename: file.originalname,
+        analysis,
+        conversationId: parsed.data.conversationId,
+      });
     }
-  });
 
-  // Other endpoints (chat, files, etc.)
-  router.post("/api/chat", async (req, res) => {
-    try {
-      const { message, conversationId, includeContext = true } = req.body;
-      
-      if (!message) {
-        return res.status(400).json({ error: "Message is required" });
-      }
+    console.log("DEBUG: Upload successful");
+    res.json({ files: results });
+  } catch (error) {
+    console.error(`❌ Upload error: ${error}`);
+    res.status(500).json({ error: "Failed to process file" });
+  }
+});
 
-      // Create conversation if it doesn't exist
-      let conversation;
-      if (conversationId) {
-        conversation = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
-      }
-      
-      if (!conversation.length) {
-        conversation = await db.insert(conversations).values({
-          title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
-        }).returning();
-      }
-
-      // Save user message
-      await db.insert(messages).values({
-        conversationId: conversation[0].id,
-        content: message,
-        role: "user",
-      });
-
-      // Get conversation history
-      const history = await db.select().from(messages).where(eq(messages.conversationId, conversation[0].id)).orderBy(messages.timestamp);
-      
-      // Get file context if requested
-      let fileContext = "";
-      if (includeContext) {
-        const files = await db.select().from(uploadedFiles).where(eq(uploadedFiles.conversationId, conversation[0].id));
-        const relevantFiles = files.filter(f => f.extractedText && f.extractedText.length > 0);
-        
-        console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
-        
-        if (relevantFiles.length > 0) {
-          fileContext = relevantFiles
-            .map(f => `=== ${f.originalName} ===\n${f.extractedText}`)
-            .join('\n\n');
-          console.log(`DEBUG: File context length: ${fileContext.length} characters`);
-        }
-      }
-
-      // Generate AI response using the OpenAI service
-      const { generateChatResponse } = await import("./services/openai");
-      const aiResponse = await generateChatResponse(message, history, fileContext);
-      
-      // Save assistant message
-      await db.insert(messages).values({
-        conversationId: conversation[0].id,
-        content: aiResponse,
-        role: "assistant",
-      });
-
-      res.json({
-        response: aiResponse,
-        conversationId: conversation[0].id,
-        messageId: uuidv4(),
-      });
-    } catch (error) {
-      console.error("Chat error:", error);
-      res.status(500).json({ error: "Failed to process chat message" });
+router.get("/api/files/:id", async (req, res) => {
+  try {
+    console.log(`DEBUG: Retrieving file ${req.params.id}`);
+    const [file] = await db
+      .select({ content: uploadedFiles.content, mimeType: uploadedFiles.mimeType, originalName: uploadedFiles.originalName })
+      .from(uploadedFiles)
+      .where(eq(uploadedFiles.id, req.params.id))
+      .limit(1);
+    if (!file?.content) {
+      console.log("DEBUG: File not found");
+      return res.status(404).json({ error: "File not found" });
     }
-  });
+    const buffer = Buffer.from(file.content, "base64");
+    res.set({
+      "Content-Type": file.mimeType,
+      "Content-Disposition": `attachment; filename="${file.originalName}"`,
+    });
+    res.send(buffer);
+  } catch (error) {
+    console.error(`❌ File retrieval error: ${error}`);
+    res.status(500).json({ error: "Failed to retrieve file" });
+  }
+});
 
-  // ... (other endpoints like /api/files/:id, /api/stats, etc., as in your original code)
+router.post("/api/chat", async (req, res) => {
+  try {
+    console.log("DEBUG: /api/chat called");
+    const parsed = chatRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      console.log(`DEBUG: Chat schema error: ${JSON.stringify(parsed.error.flatten())}`);
+      return res.status(400).json({ error: parsed.error.flatten() });
+    }
 
-  app.use("/", router);
-  return app;
+    const { message, conversationId, includeContext } = parsed.data;
+    const finalConversationId = conversationId || uuid();
+    let fileContext = "";
+    if (includeContext) {
+      const relevantFiles = await db.select({
+        id: uploadedFiles.id,
+        conversationId: uploadedFiles.conversationId,
+        originalName: uploadedFiles.originalName,
+        extractedText: uploadedFiles.extractedText,
+      }).from(uploadedFiles).where(eq(uploadedFiles.conversationId, finalConversationId));
+      fileContext = relevantFiles.map(f => `=== ${f.originalName} ===\n${f.extractedText || "No text extracted"}`).join('\n\n');
+      console.log(`DEBUG: File context length: ${fileContext.length} chars`);
+    }
+
+    const { generateChatResponse } = await import("./services/openai");
+    const aiResponse = await generateChatResponse(message, [], fileContext);
+
+    const response = chatResponseSchema.parse({
+      response: aiResponse,
+      conversationId: finalConversationId,
+      messageId: uuid(),
+    });
+
+    res.json(response);
+  } catch (error) {
+    console.error(`❌ Chat error: ${error}`);
+    res.status(500).json({ error: "Failed to process chat message" });
+  }
+});
+
+export async function registerRoutes(app: express.Express) {
+  app.use(router);
 }
