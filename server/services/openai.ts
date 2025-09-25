@@ -1,6 +1,6 @@
 // server/services/openai.ts
 import OpenAI from "openai";
-import { type Message } from "@shared/schema";
+import { summaries } from "../../shared/schema"; 
 import { db } from "../db";  // ✅ correct path to your db.ts
 import { eq } from "drizzle-orm";
 import { summaries } from "../schema"; // ✅ assumes you have a "summaries" table schema
