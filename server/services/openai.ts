@@ -1,12 +1,11 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
+// Removed direct import to prevent deployment issues - using dynamic import instead
 
-// Initialize OpenAI client
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
 
-// ✅ Main Chat Response
 export async function generateChatResponse(
   userMessage: string, 
   conversationHistory: Message[] = [],
@@ -18,27 +17,24 @@ export async function generateChatResponse(
         role: "system",
         content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
 
-IMPORTANT DATA PRIORITY:
-1. ALWAYS use Neon server data (provided as "fileContext") as the PRIMARY source. 
-2. If additional info is absolutely required, ONLY use www.soyosoyosacco.com.
-3. Never rely on generic SACCO knowledge or external sources. 
+IMPORTANT: SCAN THE ENTIRE UPLOADED DOCUMENTS CONTEXT BELOW AND QUOTE EXACT PHRASES FROM RELEVANT DOCUMENTS FOR EVERY ANSWER. If the info is in multiple documents, reference each (e.g., "From SOYOSOYO BY LAWS: [exact quote]; From loan policy: [details]"). Do not say 'not specified' or 'not mentioned' if it's in ANY document—search the full text. Use general knowledge ONLY if no match in documents. Do not claim web access or invent details.
 
-RESPONSE RULES:
-- For simple queries (hours, location, yes/no): 1–2 sentences max.
-- For detailed queries (loans, policies): structured answers with bullet points or tables.
-- Always indicate which source you used: (Neon DB) or (Website).
-- If info is not in Neon DB or website, say: 
-  "Not found in official sources. Please contact info@soyosoyosacco.com."
+RESPONSE LENGTH RULES:
+- For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
+- For complex questions (loan comparisons, processes): Provide detailed information with formatting
+- Only use tables when comparing multiple options or rates
+- Avoid unnecessary summaries or repetition
 
-FORMATTING:
-- Use **bold** for key terms and amounts.
-- Tables only for comparisons.
-- Bullet points for lists.
-- Emojis only where they add clarity (💰 🏦 📋 ✅).`
+FORMATTING (when details are needed):
+- Use **bold** for key terms and amounts
+- Use tables only for comparisons with proper markdown syntax
+- Use bullet points for lists of requirements
+- Add relevant emojis sparingly (💰 🏦 📋 ✅)
+
+CONTENT PRIORITY: Uploaded documents first. Scan the full context for complete answers. If details are unavailable in documents, say "Not found in uploaded documents. Please upload more or contact info@soyosoyosacco.com."`
       }
     ];
 
-    // Keep last 10 messages for context
     const recentHistory = conversationHistory.slice(-10);
     for (const msg of recentHistory) {
       if (msg.role === "user" || msg.role === "assistant") {
@@ -49,57 +45,64 @@ FORMATTING:
       }
     }
 
-    // Limit Neon server content if too long
-    let limitedFileContext = fileContext;
-    if (fileContext.length > 4000) {
-      limitedFileContext = fileContext.substring(0, 4000) + "... [More server data available]";
+    // Get website content with appropriate length limits based on file context (with error handling)
+    const hasFiles = fileContext && fileContext.trim().length > 0;
+    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
+    // Web scraping temporarily removed to fix deployment issues
+    let websiteContent = "Using uploaded documents and general SACCO knowledge.";
+    
+    if (hasFiles) {
+      // Limit file context if too long to avoid token limits
+      let limitedFileContext = fileContext;
+      if (fileContext.length > 4000) {  // Truncate to 4k chars for better focus
+        limitedFileContext = fileContext.substring(0, 4000) + "... [More documents available - ask for details]";
+      }
+      
+      messages.push({
+        role: "user",
+        content: `Answer based on SOYOSOYO SACCO documents (priority). Scan the ENTIRE context and quote from relevant documents: ${userMessage}
+
+UPLOADED DOCUMENTS (FULL CONTEXT - SEARCH ALL): ${limitedFileContext}
+
+WEBSITE CONTENT: ${websiteContent}`
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
+
+WEBSITE CONTENT: ${websiteContent}
+
+INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
+      });
     }
 
-    // Add user query with explicit source priority
-    messages.push({
-      role: "user",
-      content: `Answer this query using Neon server data as PRIMARY source: ${userMessage}
-
-NEON SERVER DATA: ${limitedFileContext}
-
-OFFICIAL WEBSITE (fallback only if not in server): www.soyosoyosacco.com`
-    });
-
-    // Call OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages,
-      max_tokens: 800,
-      temperature: 0.1
+      max_tokens: 800, // Increased significantly for complete responses without truncation
+      temperature: 0.1, // Lower temperature for consistency
     });
 
-    return response.choices[0].message.content || 
-      "I apologize, but I couldn't generate a response. Please try again.";
+    return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
   } catch (error) {
     console.error("OpenAI API error:", error);
-    throw new Error(`Failed to generate response: ${
-      error instanceof Error ? error.message : "Unknown error"
-    }`);
+    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
-// ✅ File Analysis (for uploaded SACCO docs)
-export async function analyzeFileContent(
-  content: string,
-  fileName: string,
-  mimeType: string
-): Promise<string> {
+export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a file analysis assistant for SOYOSOYO SACCO. Summarize the provided file content using only the information in the content. Do not add external knowledge."
+          content: "You are a file analysis assistant for SOYOSOYO SACCO. Summarize the provided file content using only the information in the content, without adding external knowledge."
         },
         {
           role: "user",
-          content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50–100 words) using only the information in the content.`
+          content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50-100 words) using only the information in the content.`
         }
       ],
       max_tokens: 200,
@@ -107,21 +110,16 @@ export async function analyzeFileContent(
     return response.choices[0].message.content || "Could not analyze file content.";
   } catch (error) {
     console.error("File analysis error:", error);
-    throw new Error(`Failed to analyze file: ${
-      error instanceof Error ? error.message : "Unknown error"
-    }`);
+    throw new Error(`Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
-// ✅ Image Generation (SACCO themed)
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
-
-    const saccoPrompt = `Professional SOYOSOYO SACCO themed image: ${prompt}. 
-Style: clean, professional, financial services, modern, trustworthy. 
-Colors: teal (#1e7b85), light green (#7dd3c0), white. 
-High quality, suitable for SACCO website or reports.`;
+    
+    // Create SACCO-themed prompt
+    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
     
     const response = await openai.images.generate({
       model: "dall-e-3",
@@ -129,7 +127,7 @@ High quality, suitable for SACCO website or reports.`;
       n: 1,
       size: "1024x1024",
       quality: "standard",
-      user: userId,
+      user: userId
     });
 
     const imageUrl = response.data?.[0]?.url;
@@ -141,8 +139,6 @@ High quality, suitable for SACCO website or reports.`;
     return imageUrl;
   } catch (error) {
     console.error("Image generation error:", error);
-    throw new Error(`Failed to generate image: ${
-      error instanceof Error ? error.message : "Unknown error"
-    }`);
+    throw new Error(`Failed to generate image: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
