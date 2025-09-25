@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
-import { getStoredWebsiteContent } from "./webScraper";
+// Removed direct import to prevent deployment issues - using dynamic import instead
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
@@ -50,6 +50,8 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
     const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
     let websiteContent = "";
     try {
+      // Use dynamic import to prevent deployment issues
+      const { getStoredWebsiteContent } = await import("./webScraper");
       websiteContent = getStoredWebsiteContent(websiteContentLimit);
     } catch (error) {
       console.error("⚠️ Web scraping service unavailable:", error);
