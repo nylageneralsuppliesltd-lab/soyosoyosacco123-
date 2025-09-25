@@ -49,9 +49,7 @@ export async function registerRoutes(app: express.Express) {
 
   router.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
-      console.log("DEBUG: /api/upload called");
       if (!req.file) {
-        console.log("DEBUG: No file uploaded");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
@@ -80,7 +78,6 @@ export async function registerRoutes(app: express.Express) {
         content: file.buffer.toString("base64"),
       });
 
-      console.log("DEBUG: Upload successful");
       res.json({ id: createdFile.id, filename, originalName: file.originalname, mimeType, size, analysis });
     } catch (error) {
       console.error("Upload error:", error);
@@ -90,7 +87,6 @@ export async function registerRoutes(app: express.Express) {
 
   router.get("/api/files/:id", async (req, res) => {
     try {
-      console.log(`DEBUG: Retrieving file ${req.params.id}`);
       const file = await storage.getFile(req.params.id);
       if (!file) {
         return res.status(404).json({ error: "File not found" });
@@ -178,7 +174,6 @@ export async function registerRoutes(app: express.Express) {
 
   router.post("/api/chat", async (req, res) => {
     try {
-      console.log("DEBUG: /api/chat called");
       const { message, conversationId, includeContext = true } = req.body;
       
       if (!message) {
@@ -268,7 +263,7 @@ export async function registerRoutes(app: express.Express) {
         endpoint: "/api/generate-image",
         method: "POST",
         statusCode: 200,
-        responseTime: 0,
+        responseTime: 0, // We don't track this for images yet
         success: true,
         metadata: { prompt, conversationId, imageUrl }
       });
