@@ -1,4 +1,4 @@
-import pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs"; // Namespace import instead of default
 import { analyzeFileContent } from "./openai";
 
 export async function processUploadedFile(
