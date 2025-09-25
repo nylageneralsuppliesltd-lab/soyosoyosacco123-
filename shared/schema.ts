@@ -1,5 +1,5 @@
 // shared/schema.ts
-import { pgTable, serial, text, varchar, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -22,25 +22,25 @@ export const messages = pgTable("messages", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id", { length: 36 }).notNull().references(() => conversations.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
-  role: text("role").notNull().$type<"user" | "assistant">(),  // Type-safe role
+  role: text("role").notNull().$type<"user" | "assistant">(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   metadata: jsonb("metadata").default("{}"),
 });
 
 // ========================
-// Uploaded Files Table
+// Uploaded Files Table (Improved to Match DB Dump)
 // ========================
 export const uploadedFiles = pgTable("uploaded_files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id", { length: 36 }).references(() => conversations.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),
+  originalName: text("original_name").notNull(),  // Matches DB: original_name
   mimeType: text("mime_type").notNull(),
-  size: integer("size").notNull(),  // In bytes
-  extractedText: text("extracted_text"),  // Full extracted text (can be long)
-  metadata: jsonb("metadata").default("{}"),  // e.g., { analysis: "Summary..." }
-  content: text("content"),  // Base64 encoded file content (optional for large files)
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  size: integer("text_length").notNull(),  // Matches DB: text_length (rename if needed)
+  extractedText: text("extracted_text"),
+  metadata: jsonb("metadata").default("{}"),
+  content: text("content"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),  // Matches DB: uploaded_at
   processed: boolean("processed").default(false).notNull(),
 });
 
@@ -52,7 +52,7 @@ export const apiLogs = pgTable("api_logs", {
   endpoint: text("endpoint").notNull(),
   method: text("method").notNull(),
   statusCode: integer("status_code").notNull(),
-  responseTime: integer("response_time").notNull(),  // In ms
+  responseTime: integer("response_time").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   errorMessage: text("error_message"),
 });
@@ -91,6 +91,7 @@ export const insertConversationSchema = createInsertSchema(conversations, { driv
 export const insertMessageSchema = createInsertSchema(messages, { driver: "pg" }).omit({
   id: true,
   timestamp: true,
+  metadata: true,
 });
 
 export const insertFileSchema = createInsertSchema(uploadedFiles, { driver: "pg" }).omit({
