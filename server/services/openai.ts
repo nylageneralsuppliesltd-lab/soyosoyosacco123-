@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
+import { getStoredWebsiteContent } from "./webScraper";
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
@@ -42,17 +43,32 @@ Use uploaded documents first. For details: visit soyosoyosacco.com.`
       }
     }
 
-    if (fileContext && fileContext.trim().length > 0) {
+    // Get website content with appropriate length limits based on file context
+    const hasFiles = fileContext && fileContext.trim().length > 0;
+    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
+    const websiteContent = getStoredWebsiteContent(websiteContentLimit);
+    
+    if (hasFiles) {
+      // Limit file context if too long to avoid token limits
+      let limitedFileContext = fileContext;
+      if (fileContext.length > 10000) {
+        limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
+      }
+      
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents. Use formatting only when needed for complex information: ${userMessage}
+        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
 
-DOCUMENTS: ${fileContext}`
+UPLOADED DOCUMENTS: ${limitedFileContext}
+
+WEBSITE CONTENT: ${websiteContent}`
       });
     } else {
       messages.push({
         role: "user",
-        content: `${userMessage}
+        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
+
+WEBSITE CONTENT: ${websiteContent}
 
 INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
       });
