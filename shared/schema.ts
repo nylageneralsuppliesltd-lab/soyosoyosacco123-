@@ -66,19 +66,6 @@ export const insertApiLogSchema = createInsertSchema(apiLogs).omit({
   timestamp: true,
 });
 
-// Types
-export type Conversation = typeof conversations.$inferSelect;
-export type InsertConversation = z.infer<typeof insertConversationSchema>;
-
-export type Message = typeof messages.$inferSelect;
-export type InsertMessage = z.infer<typeof insertMessageSchema>;
-
-export type UploadedFile = typeof uploadedFiles.$inferSelect;
-export type InsertFile = z.infer<typeof insertFileSchema>;
-
-export type ApiLog = typeof apiLogs.$inferSelect;
-export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
-
 export const chatRequestSchema = z.object({
   message: z.string().min(1),
   conversationId: z.string().optional(),
@@ -90,6 +77,3 @@ export const chatResponseSchema = z.object({
   conversationId: z.string(),
   messageId: z.string(),
 });
-
-export type ChatRequest = z.infer<typeof chatRequestSchema>;
-export type ChatResponse = z.infer<typeof chatResponseSchema>;
