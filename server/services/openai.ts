@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
+// Removed direct import to prevent deployment issues - using dynamic import instead
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
@@ -14,9 +15,7 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant with access to current website content and uploaded documents.
-
-IMPORTANT: You have access to current SOYOSOYO SACCO website information that is automatically updated. Never claim you cannot access web content - you have the latest website data available.
+        content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
 
 RESPONSE LENGTH RULES:
 - For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
@@ -30,7 +29,7 @@ FORMATTING (when details are needed):
 - Use bullet points for lists of requirements
 - Add relevant emojis sparingly (💰 🏦 📋 ✅)
 
-CONTENT PRIORITY: Use uploaded documents first, then current website content. You have access to up-to-date SOYOSOYO SACCO information and should provide current details confidently.`
+CONTENT PRIORITY: Use uploaded documents first, then general SACCO knowledge. SOYOSOYO SACCO (Soyosoyo Medicare Co-operative Savings & Credit Society Ltd) is in Kilifi County, Kenya. Loan terms: normal loan up to 3x savings at 12% interest; emergency loan up to KES 50,000. Working hours: Monday–Friday 8:30 AM–4:00 PM. If details are unavailable, suggest contacting info@soyosoyosacco.com. Do not claim web access.`
       }
     ];
 
@@ -44,12 +43,7 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
       }
     }
 
-    // Get website content with appropriate length limits based on file context (with error handling)
     const hasFiles = fileContext && fileContext.trim().length > 0;
-    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
-    // Web scraping temporarily removed to fix deployment issues
-    let websiteContent = "Using uploaded documents and general SACCO knowledge.";
-    
     if (hasFiles) {
       // Limit file context if too long to avoid token limits
       let limitedFileContext = fileContext;
@@ -59,28 +53,24 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
       
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
+        content: `Answer based on SOYOSOYO SACCO documents (priority) and general SACCO knowledge. Use formatting only when needed for complex information: ${userMessage}
 
-UPLOADED DOCUMENTS: ${limitedFileContext}
-
-WEBSITE CONTENT: ${websiteContent}`
+UPLOADED DOCUMENTS: ${limitedFileContext}`
       });
     } else {
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
-
-WEBSITE CONTENT: ${websiteContent}
+        content: `Answer based on general SOYOSOYO SACCO knowledge: ${userMessage}
 
 INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
       });
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      model: "gpt-4o",
       messages,
-      max_tokens: 800, // Increased significantly for complete responses without truncation
-      temperature: 0.1, // Lower temperature for consistency
+      max_tokens: 800,
+      temperature: 0.1,
     });
 
     return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
