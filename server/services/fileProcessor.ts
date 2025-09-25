@@ -6,7 +6,7 @@ export async function processUploadedFile(
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
-  console.log(`DEBUG: Processing ${fileName} (${mimeType})`);
+  console.log(`DEBUG: Processing ${fileName} (${mimeType}), size: ${fileBuffer.length / 1024 / 1024} MB`);
   try {
     if (mimeType.startsWith("text/") || mimeType === "application/json") {
       const content = fileBuffer.toString("utf-8");
@@ -15,10 +15,18 @@ export async function processUploadedFile(
       const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
       return { extractedText: content, analysis };
     } else if (mimeType === "application/pdf") {
+      if (fileBuffer.length > 5 * 1024 * 1024) { // 5MB threshold
+        console.warn(`⚠️ Large PDF (${fileBuffer.length / 1024 / 1024} MB), skipping full extraction to avoid timeout`);
+        return {
+          extractedText: "Large PDF detected. Please upload smaller files or contact support for processing.",
+          analysis: "File too large for automatic extraction on free tier. Summary unavailable."
+        };
+      }
       const loadingTask = pdfjs.getDocument({ data: new Uint8Array(fileBuffer), verbosity: 0 });
       const pdfDocument = await loadingTask.promise;
       let extractedText = "";
-      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+      const maxPages = Math.min(pdfDocument.numPages, 20); // Limit to 20 pages to save memory
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
         const page = await pdfDocument.getPage(pageNum);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
@@ -29,7 +37,7 @@ export async function processUploadedFile(
         if (pageText) extractedText += `\n\n=== Page ${pageNum} ===\n${pageText}`;
       }
       extractedText = extractedText.trim();
-      console.log(`DEBUG: Extracted ${extractedText.length} chars from ${fileName}`);
+      console.log(`DEBUG: Extracted ${extractedText.length} chars from ${fileName} (${maxPages} pages)`);
       if (!extractedText || extractedText.length < 50) {
         throw new Error("No readable text in PDF");
       }
