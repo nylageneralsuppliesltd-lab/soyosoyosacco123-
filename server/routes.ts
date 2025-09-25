@@ -3,7 +3,7 @@ import { processUploadedFile } from "./services/fileProcessor";
 import { storage } from "./storage";
 import { v4 as uuidv4 } from "uuid";
 import multer from "multer";
-import { insertFileSchema, uploadedFiles } from "../shared/schema";
+import { insertFileSchema, uploadedFiles, type UploadedFile } from "../shared/schema";
 import { db } from "./storage";
 import { eq } from "drizzle-orm";
 
@@ -206,13 +206,13 @@ export async function registerRoutes(app: express.Express) {
       let fileContext = "";
       if (includeContext) {
         const files = await storage.getAllFiles();
-        const relevantFiles = files.filter(f => f.extractedText && f.extractedText.length > 0);
+        const relevantFiles = files.filter((f: UploadedFile) => f.extractedText && f.extractedText.length > 0);
         
         console.log(`DEBUG: Found ${files.length} total files, ${relevantFiles.length} with extracted text`);
         
         if (relevantFiles.length > 0) {
           fileContext = relevantFiles
-            .map(f => `=== ${f.originalName} ===\n${f.extractedText}`)
+            .map((f: UploadedFile) => `=== ${f.originalName} ===\n${f.extractedText}`)
             .join('\n\n');
           console.log(`DEBUG: File context length: ${fileContext.length} characters`);
         }
