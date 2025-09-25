@@ -1,11 +1,12 @@
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
-// Removed direct import to prevent deployment issues - using dynamic import instead
 
+// Initialize OpenAI client
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
 });
 
+// ✅ Main Chat Response
 export async function generateChatResponse(
   userMessage: string, 
   conversationHistory: Message[] = [],
@@ -15,26 +16,29 @@ export async function generateChatResponse(
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
+        content: `You are SOYOSOYO SACCO Assistant.
 
-IMPORTANT: ALWAYS use the UPLOADED DOCUMENTS as your PRIMARY SOURCE. Search ALL documents and quote/summarize from relevant ones for EVERY answer. If the answer is in multiple documents, reference each (e.g., "From By Laws: [quote]; From Loan Policy: [details]"). Never say 'not mentioned' if info is in ANY document—scan all. Do not use general knowledge if documents are available. Do not claim web access or invent details.
+IMPORTANT DATA PRIORITY:
+1. ALWAYS use Neon server data (provided as "fileContext") as the PRIMARY source. 
+2. If additional info is absolutely required, ONLY use www.soyosoyosacco.com.
+3. Never rely on generic SACCO knowledge or external sources. 
 
-RESPONSE LENGTH RULES:
-- For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
-- For complex questions (loan comparisons, processes): Provide detailed information with formatting
-- Only use tables when comparing multiple options or rates
-- Avoid unnecessary summaries or repetition
+RESPONSE RULES:
+- For simple queries (hours, location, yes/no): 1–2 sentences max.
+- For detailed queries (loans, policies): structured answers with bullet points or tables.
+- Always indicate which source you used: (Neon DB) or (Website).
+- If info is not in Neon DB or website, say: 
+  "Not found in official sources. Please contact info@soyosoyosacco.com."
 
-FORMATTING (when details are needed):
-- Use **bold** for key terms and amounts
-- Use tables only for comparisons with proper markdown syntax
-- Use bullet points for lists of requirements
-- Add relevant emojis sparingly (💰 🏦 📋 ✅)
-
-CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If details are unavailable in documents, say "Not found in uploaded documents. Please upload more or contact info@soyosoyosacco.com."`
+FORMATTING:
+- Use **bold** for key terms and amounts.
+- Tables only for comparisons.
+- Bullet points for lists.
+- Emojis only where they add clarity (💰 🏦 📋 ✅).`
       }
     ];
 
+    // Keep last 10 messages for context
     const recentHistory = conversationHistory.slice(-10);
     for (const msg of recentHistory) {
       if (msg.role === "user" || msg.role === "assistant") {
@@ -45,52 +49,39 @@ CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If de
       }
     }
 
-    // Get website content with appropriate length limits based on file context (with error handling)
-    const hasFiles = fileContext && fileContext.trim().length > 0;
-    const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
-    // Web scraping temporarily removed to fix deployment issues
-    let websiteContent = "Using uploaded documents and general SACCO knowledge.";
-    
-    if (hasFiles) {
-      // Limit file context if too long to avoid token limits (truncate to 4k chars for focus)
-      let limitedFileContext = fileContext;
-      if (fileContext.length > 4000) {
-        limitedFileContext = fileContext.substring(0, 4000) + "... [More documents available - ask for details]";
-      }
-      
-      messages.push({
-        role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority). Search ALL documents and quote from relevant ones: ${userMessage}
-
-UPLOADED DOCUMENTS (PRIMARY SOURCE - SCAN ALL): ${limitedFileContext}
-
-WEBSITE CONTENT: ${websiteContent}`
-      });
-    } else {
-      messages.push({
-        role: "user",
-        content: `Answer based on SOYOSOYO SACCO website content and your knowledge: ${userMessage}
-
-WEBSITE CONTENT: ${websiteContent}
-
-INSTRUCTION: Answer appropriately - be concise for simple questions, detailed for complex ones. Use formatting only when it adds value.`
-      });
+    // Limit Neon server content if too long
+    let limitedFileContext = fileContext;
+    if (fileContext.length > 4000) {
+      limitedFileContext = fileContext.substring(0, 4000) + "... [More server data available]";
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-      messages,
-      max_tokens: 800, // Increased significantly for complete responses without truncation
-      temperature: 0.1, // Lower temperature for consistency
+    // Add user query with explicit source priority
+    messages.push({
+      role: "user",
+      content: `Answer this query using Neon server data as PRIMARY source: ${userMessage}
+
+NEON SERVER DATA: ${limitedFileContext}
+
+OFFICIAL WEBSITE (fallback only if not in server): www.soyosoyosacco.com`
     });
 
-    return response.choices[0].message.content || "I apologize, but I couldn't generate a response. Please try again.";
+    // Call OpenAI
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      max_tokens: 800,
+      temperature: 0.1
+    });
+
+    return response.choices[0].message.content || 
+      "I apologize, but I couldn't generate a response. Please try again.";
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
+// ✅ File Analysis (for uploaded SACCO docs)
 export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
@@ -98,11 +89,11 @@ export async function analyzeFileContent(content: string, fileName: string, mime
       messages: [
         {
           role: "system",
-          content: "You are a file analysis assistant for SOYOSOYO SACCO. Summarize the provided file content using only the information in the content, without adding external knowledge."
+          content: "You are a file analysis assistant for SOYOSOYO SACCO. Summarize the provided file content using only the information in the content. Do not add external knowledge."
         },
         {
           role: "user",
-          content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50-100 words) using only the information in the content.`
+          content: `Summarize the content of ${fileName} (type: ${mimeType}):\n${content}\nProvide a summary (50–100 words) using only the information in the content.`
         }
       ],
       max_tokens: 200,
@@ -114,12 +105,15 @@ export async function analyzeFileContent(content: string, fileName: string, mime
   }
 }
 
+// ✅ Image Generation (SACCO themed)
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
     
-    // Create SACCO-themed prompt
-    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
+    const saccoPrompt = `Professional SOYOSOYO SACCO themed image: ${prompt}. 
+Style: clean, professional, financial services, modern, trustworthy. 
+Colors: teal (#1e7b85), light green (#7dd3c0), white. 
+High quality, suitable for SACCO website or reports.`;
     
     const response = await openai.images.generate({
       model: "dall-e-3",
