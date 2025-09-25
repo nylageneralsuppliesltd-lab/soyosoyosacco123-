@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔧 Starting Render build..."
+echo "🔧 Starting simple Render build..."
 
 # Install dependencies
 echo "📦 Installing dependencies..."
