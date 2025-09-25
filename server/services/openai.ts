@@ -1,4 +1,3 @@
-// server/services/openai.ts
 import OpenAI from "openai";
 import { type Message } from "@shared/schema";
 // Removed direct import to prevent deployment issues - using dynamic import instead
@@ -13,14 +12,12 @@ export async function generateChatResponse(
   fileContext: string = ""
 ): Promise<string> {
   try {
-    let hasFiles = fileContext && fileContext.trim().length > 0;  // Declare outside try for scope
-
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are SOYOSOYO SACCO Assistant with access to current website content and uploaded documents.
+        content: `You are SOYOSOYO SACCO Assistant with access to uploaded documents.
 
-IMPORTANT: You have access to current SOYOSOYO SACCO website information that is automatically updated. Never claim you cannot access web content - you have the latest website data available.
+IMPORTANT: SEARCH ALL UPLOADED DOCUMENTS and QUOTE EXACT PHRASES from relevant ones for EVERY answer. If the answer is in multiple documents, reference EACH (e.g., "From SOYOSOYO BY LAWS: [quote]; From loan policy: [details]"). Do not say 'not mentioned' if it's in ANY document—scan all. Use general knowledge ONLY if no match. Do not claim web access or invent details.
 
 RESPONSE LENGTH RULES:
 - For simple questions (hours, locations, yes/no): Give concise, direct answers (1-2 sentences)
@@ -34,7 +31,7 @@ FORMATTING (when details are needed):
 - Use bullet points for lists of requirements
 - Add relevant emojis sparingly (💰 🏦 📋 ✅)
 
-CONTENT PRIORITY: Use uploaded documents first, then current website content. You have access to up-to-date SOYOSOYO SACCO information and should provide current details confidently.`
+CONTENT PRIORITY: Uploaded documents first. Scan all for complete answers. If details are unavailable in documents, say "Not found in uploaded documents. Please upload more or contact info@soyosoyosacco.com."`
       }
     ];
 
@@ -49,22 +46,26 @@ CONTENT PRIORITY: Use uploaded documents first, then current website content. Yo
     }
 
     // Get website content with appropriate length limits based on file context (with error handling)
+    const hasFiles = fileContext && fileContext.trim().length > 0;
     const websiteContentLimit = hasFiles ? 3000 : 5000; // Smaller limit when files are present
     // Web scraping temporarily removed to fix deployment issues
     let websiteContent = "Using uploaded documents and general SACCO knowledge.";
     
     if (hasFiles) {
-      // Limit file context if too long to avoid token limits
-      let limitedFileContext = fileContext;
-      if (fileContext.length > 10000) {
-        limitedFileContext = fileContext.substring(0, 10000) + "... [Additional content available - ask for more specific details]";
-      }
+      // Split fileContext into separate messages per document (forces referencing all 5)
+      const documents = fileContext.split('\n\n=== ').slice(1);  // Split by "=== Document Name ===\nText"
+      documents.forEach(doc => {
+        if (doc.trim()) {
+          messages.push({
+            role: "system",
+            content: `UPLOADED DOCUMENT: ${doc}`  // Each as separate system message for emphasis
+          });
+        }
+      });
       
       messages.push({
         role: "user",
-        content: `Answer based on SOYOSOYO SACCO documents (priority) and website content. Use formatting only when needed for complex information: ${userMessage}
-
-UPLOADED DOCUMENTS: ${limitedFileContext}
+        content: `Answer based on SOYOSOYO SACCO documents (priority). Search ALL documents and quote from relevant ones: ${userMessage}
 
 WEBSITE CONTENT: ${websiteContent}`
       });
@@ -132,15 +133,4 @@ export async function generateImage(prompt: string, userId?: string): Promise<st
       user: userId
     });
 
-    const imageUrl = response.data?.[0]?.url;
-    if (!imageUrl) {
-      throw new Error("No image URL returned from OpenAI");
-    }
-
-    console.log("Image generated successfully:", imageUrl);
-    return imageUrl;
-  } catch (error) {
-    console.error("Image generation error:", error);
-    throw new Error(`Failed to generate image: ${error instanceof Error ? error.message : "Unknown error"}`);
-  }
-}
+    const imageUrl = response.data?.
