@@ -1,79 +1,22 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+// shared/schema.ts
+import { pgTable, varchar, text, timestamp } from "drizzle-orm/pg-core";
 
-export const conversations = pgTable("conversations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull().default("New Conversation"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const summaries = pgTable("summaries", {
+  id: varchar("id")
+    .primaryKey()
+    .defaultRandom(), // unique random ID for each summary
 
-export const messages = pgTable("messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
-  content: text("content").notNull(),
-  role: text("role").notNull(),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-  metadata: jsonb("metadata"),
-});
+  hash: varchar("hash", { length: 64 })
+    .notNull()
+    .unique(), // SHA-256 (or other) hash of file contents, ensures deduplication
 
-export const uploadedFiles = pgTable("uploaded_files", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id").references(() => conversations.id),
-  filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),
-  mimeType: text("mime_type").notNull(),
-  size: integer("size").notNull(),
-  extractedText: text("extracted_text"),
-  metadata: jsonb("metadata"),
-  content: text("content"),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  processed: boolean("processed").default(false).notNull(),
-});
+  summary: text("summary")
+    .notNull(), // final AI-generated summary text
 
-export const apiLogs = pgTable("api_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  endpoint: text("endpoint").notNull(),
-  method: text("method").notNull(),
-  statusCode: integer("status_code").notNull(),
-  responseTime: integer("response_time").notNull(),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-  errorMessage: text("error_message"),
-});
+  fileName: varchar("file_name", { length: 255 })
+    .notNull(), // original file name for traceability
 
-// Insert schemas
-export const insertConversationSchema = createInsertSchema(conversations).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertMessageSchema = createInsertSchema(messages).omit({
-  id: true,
-  timestamp: true,
-});
-
-export const insertFileSchema = createInsertSchema(uploadedFiles).omit({
-  id: true,
-  uploadedAt: true,
-  processed: true,
-});
-
-export const insertApiLogSchema = createInsertSchema(apiLogs).omit({
-  id: true,
-  timestamp: true,
-});
-
-export const chatRequestSchema = z.object({
-  message: z.string().min(1),
-  conversationId: z.string().optional(),
-  includeContext: z.boolean().default(true),
-});
-
-export const chatResponseSchema = z.object({
-  response: z.string(),
-  conversationId: z.string(),
-  messageId: z.string(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(), // auto timestamp
 });
