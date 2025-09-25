@@ -20,7 +20,9 @@ export const conversations = pgTable("conversations", {
 // ========================
 export const messages = pgTable("messages", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id", { length: 36 }).notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  conversationId: varchar("conversation_id", { length: 36 })
+    .notNull()
+    .references(() => conversations.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   role: text("role").notNull().$type<"user" | "assistant">(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
@@ -28,19 +30,20 @@ export const messages = pgTable("messages", {
 });
 
 // ========================
-// Uploaded Files Table (Improved to Match DB Dump)
+// Uploaded Files Table (Match DB)
 // ========================
 export const uploadedFiles = pgTable("uploaded_files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id", { length: 36 }).references(() => conversations.id, { onDelete: "set null" }),
+  conversationId: varchar("conversation_id", { length: 36 })
+    .references(() => conversations.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),  // Matches DB: original_name
+  originalName: text("original_name").notNull(), // matches DB column
   mimeType: text("mime_type").notNull(),
-  size: integer("text_length").notNull(),  // Matches DB: text_length (rename if needed)
+  textLength: integer("text_length").notNull(), // ✅ keep as text_length (server DB)
   extractedText: text("extracted_text"),
   metadata: jsonb("metadata").default("{}"),
   content: text("content"),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),  // Matches DB: uploaded_at
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
 });
 
@@ -58,7 +61,7 @@ export const apiLogs = pgTable("api_logs", {
 });
 
 // ========================
-// Relations (for joins/queries)
+// Relations
 // ========================
 export const conversationsRelations = relations(conversations, ({ many }) => ({
   messages: many(messages),
@@ -80,7 +83,7 @@ export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
 }));
 
 // ========================
-// Zod Validation Schemas
+// Zod Schemas
 // ========================
 export const insertConversationSchema = createInsertSchema(conversations, { driver: "pg" }).omit({
   id: true,
@@ -106,7 +109,7 @@ export const insertApiLogSchema = createInsertSchema(apiLogs, { driver: "pg" }).
 });
 
 // ========================
-// Types (Inferred from Tables)
+// Types
 // ========================
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof insertConversationSchema.$inferInsert;
@@ -121,7 +124,7 @@ export type ApiLog = typeof apiLogs.$inferSelect;
 export type InsertApiLog = typeof insertApiLogSchema.$inferInsert;
 
 // ========================
-// Chat Schemas (Zod for Validation)
+// Chat Schemas
 // ========================
 export const chatRequestSchema = z.object({
   message: z.string().min(1, "Message is required"),
