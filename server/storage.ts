@@ -63,6 +63,14 @@ try {
   });
   
   console.log("✅ Database pool initialized successfully");
+  
+  // Test database connection asynchronously
+  pool.query('SELECT 1')
+    .then(() => console.log("🔗 Database connection verified"))
+    .catch((testError) => {
+      console.error("❌ Database connection test failed:", testError);
+      console.error("This may cause runtime errors. Check your DATABASE_URL and network connectivity.");
+    });
 } catch (error) {
   console.error("❌ CRITICAL: Failed to initialize database:", error);
   process.exit(1);
