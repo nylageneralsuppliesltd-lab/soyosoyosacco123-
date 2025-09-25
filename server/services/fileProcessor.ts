@@ -1,187 +1,49 @@
+import pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { analyzeFileContent } from "./openai";
-import { fromBuffer } from "pdf2pic";
-import Tesseract from "tesseract.js";
-import { db } from "../storage";
-import { uploadedFiles } from "../../shared/schema";
-import { eq } from "drizzle-orm";
 
 export async function processUploadedFile(
   fileBuffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<{ extractedText: string; analysis: string }> {
-  console.log(`DEBUG: Processing file ${fileName} (${mimeType})`);
+  console.log(`DEBUG: Processing ${fileName} (${mimeType})`);
   try {
     if (mimeType.startsWith("text/") || mimeType === "application/json") {
-      return await processTextFile(fileBuffer, fileName, mimeType);
+      const content = fileBuffer.toString("utf-8");
+      console.log(`DEBUG: Extracted ${content.length} chars from ${fileName}`);
+      const limitedContent = content.length > 4000 ? content.substring(0, 4000) + "..." : content;
+      const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
+      return { extractedText: content, analysis };
     } else if (mimeType === "application/pdf") {
-      return await processPdfFile(fileBuffer, fileName, mimeType);
-    } else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || mimeType === "application/msword") {
-      return await processWordDocument(fileBuffer, fileName, mimeType);
-    } else if (mimeType.startsWith("image/")) {
-      return await processImageFile(fileBuffer, fileName, mimeType);
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(fileBuffer), verbosity: 0 });
+      const pdfDocument = await loadingTask.promise;
+      let extractedText = "";
+      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+        const page = await pdfDocument.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (pageText) extractedText += `\n\n=== Page ${pageNum} ===\n${pageText}`;
+      }
+      extractedText = extractedText.trim();
+      console.log(`DEBUG: Extracted ${extractedText.length} chars from ${fileName}`);
+      if (!extractedText || extractedText.length < 50) {
+        throw new Error("No readable text in PDF");
+      }
+      const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
+      const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
+      return { extractedText, analysis };
     } else {
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
   } catch (error) {
-    console.error(`File processing error for ${fileName}:`, error);
+    console.error(`❌ File processing error for ${fileName}: ${error}`);
     return {
-      extractedText: "Could not extract text from file",
+      extractedText: `Could not extract text from ${fileName}.`,
       analysis: `Error processing file: ${error instanceof Error ? error.message : "Unknown error"}`,
     };
   }
-}
-
-async function processPdfFile(
-  fileBuffer: Buffer,
-  fileName: string,
-  mimeType: string
-): Promise<{ extractedText: string; analysis: string }> {
-  try {
-    console.log(`DEBUG: Processing PDF: ${fileName} using pdfjs-dist...`);
-    const pdfjsModule = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const pdfjs = pdfjsModule;
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(fileBuffer),
-      verbosity: 0,
-    });
-    const pdfDocument = await loadingTask.promise;
-    let extractedText = "";
-    for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
-      const page = await pdfDocument.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (pageText) extractedText += `\n\n=== Page ${pageNum} ===\n\n${pageText}`;
-    }
-    extractedText = extractedText.trim();
-    if (!extractedText || extractedText.length < 50) {
-      console.log(`DEBUG: No text found in ${fileName}, attempting OCR...`);
-      const output = await fromBuffer(fileBuffer, { format: "png", density: 100 }).bulk(-1);
-      let ocrText = "";
-      for (const page of output) {
-        if ('buffer' in page) {
-          const imageBuffer = page.buffer;
-          const { data: { text } } = await Tesseract.recognize(imageBuffer, "eng");
-          ocrText += `\n\n=== Page ${page.page} ===\n\n${text}`;
-        }
-      }
-      extractedText = ocrText.trim();
-      if (!extractedText || extractedText.length < 50) {
-        throw new Error("No readable text content found in PDF, even with OCR");
-      }
-    }
-    console.log(`DEBUG: Extracted ${extractedText.length} characters from ${fileName}`);
-    const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
-    const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
-    return { extractedText, analysis };
-  } catch (error) {
-    console.error(`PDF processing failed for ${fileName}:`, error);
-    return {
-      extractedText: `Could not extract readable text from PDF: ${fileName}.`,
-      analysis: `Error processing PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
-    };
-  }
-}
-
-async function processTextFile(
-  fileBuffer: Buffer,
-  fileName: string,
-  mimeType: string
-): Promise<{ extractedText: string; analysis: string }> {
-  try {
-    const content = fileBuffer.toString("utf-8");
-    console.log(`DEBUG: Extracted ${content.length} characters from ${fileName}`);
-    const limitedContent = content.length > 4000 ? content.substring(0, 4000) + "..." : content;
-    const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
-    return { extractedText: content, analysis };
-  } catch (error) {
-    throw new Error(`Failed to process text file: ${error instanceof Error ? error.message : "Unknown error"}`);
-  }
-}
-
-async function processWordDocument(
-  fileBuffer: Buffer,
-  fileName: string,
-  mimeType: string
-): Promise<{ extractedText: string; analysis: string }> {
-  try {
-    // For now, return a message indicating Word processing is being implemented
-    return {
-      extractedText: `Word document uploaded: ${fileName}. Text extraction for Word documents is being processed...`,
-      analysis: `Word document detected: ${fileName}. Please convert to PDF or text format for full text extraction.`
-    };
-  } catch (error) {
-    console.error(`Word document processing failed for ${fileName}:`, error);
-    return {
-      extractedText: `Could not extract text from Word document: ${fileName}.`,
-      analysis: `Error processing Word document: ${error instanceof Error ? error.message : "Unknown error"}`
-    };
-  }
-}
-
-async function processImageFile(
-  fileBuffer: Buffer,
-  fileName: string,
-  mimeType: string
-): Promise<{ extractedText: string; analysis: string }> {
-  try {
-    console.log(`DEBUG: Processing image: ${fileName} with OCR...`);
-    
-    const { data: { text } } = await Tesseract.recognize(fileBuffer, "eng", {
-      logger: m => console.log(`OCR Progress: ${m.progress}`)
-    });
-    
-    const extractedText = text.trim();
-    
-    if (!extractedText || extractedText.length < 10) {
-      return {
-        extractedText: `Image uploaded: ${fileName}. No readable text detected.`,
-        analysis: `Image processed: ${fileName}. No text content found through OCR.`
-      };
-    }
-    
-    console.log(`DEBUG: Extracted ${extractedText.length} characters from image ${fileName}`);
-    const limitedContent = extractedText.length > 4000 ? extractedText.substring(0, 4000) + "..." : extractedText;
-    const analysis = await analyzeFileContent(limitedContent, fileName, mimeType);
-    
-    return { extractedText, analysis };
-  } catch (error) {
-    console.error(`Image processing failed for ${fileName}:`, error);
-    return {
-      extractedText: `Could not extract text from image: ${fileName}.`,
-      analysis: `Error processing image: ${error instanceof Error ? error.message : "Unknown error"}`
-    };
-  }
-}
-
-export async function cleanupFile(_filePath: string): Promise<void> {
-  console.log(`DEBUG: No file cleanup needed (stored in PostgreSQL)`);
-}
-
-export async function readAssetsFiles(fileNames: string[]): Promise<string> {
-  console.log(`DEBUG: Reading asset files from database`);
-  let extractedText = "";
-  for (const file of fileNames) {
-    console.log(`DEBUG: Accessing file metadata for ${file}`);
-    try {
-      const [dbFile] = await db
-        .select({ extractedText: uploadedFiles.extractedText })
-        .from(uploadedFiles)
-        .where(eq(uploadedFiles.filename, file))
-        .limit(1);
-      if (dbFile?.extractedText) {
-        extractedText += `File: ${file}\n${dbFile.extractedText}\n\n`;
-        console.log(`DEBUG: Read ${file}: ${dbFile.extractedText.length} chars`);
-      } else {
-        console.error(`No extracted text found for ${file}`);
-      }
-    } catch (error) {
-      console.error(`Error reading ${file}:`, error);
-    }
-  }
-  return extractedText;
 }
