@@ -1,20 +1,15 @@
 import express from "express";
 import { createServer } from "http";
-import { registerRoutes } from "./routes";
+import { registerRoutes } from "./routes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
-import multer from "multer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const server = createServer(app);
-const upload = multer({ 
-  storage: multer.memoryStorage(), 
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
-  timeout: 30000 // 30s timeout for large files
-});
 
+// Remove multer setup - handle in routes only
 app.use((req, res, next) => {
   console.log(`DEBUG: ${req.method} ${req.url}`);
   res.header('Access-Control-Allow-Origin', '*');
@@ -23,8 +18,9 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
+
 app.use(express.json());
-app.use(upload.any());
+// Remove: app.use(upload.any()); // ❌ This was causing conflicts
 app.use(express.static(path.resolve(__dirname, '..', 'public')));
 
 async function initializeServer() {
