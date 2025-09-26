@@ -1,17 +1,28 @@
 // server/services/openai.ts
 import OpenAI from "openai";
-import { db } from "../db";  // ✅ No .js extension
-import { uploadedFiles } from "../../shared/schema";  // ✅ No .js extension
+import { db } from "../db";
+import { uploadedFiles } from "../../shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
 });
 
 // -----------------------------
-// Fetch extracted texts from DB with better error handling
+// Fetch extracted texts from DB with connection testing
 // -----------------------------
 export async function getAllExtractedTexts(): Promise<string> {
   try {
+    console.log("🔍 Testing database connection...");
+    
+    // Test connection first
+    const { testDatabaseConnection } = await import("../db");
+    const isConnected = await testDatabaseConnection();
+    
+    if (!isConnected) {
+      console.log("❌ Database connection failed");
+      return "Database connection is currently unavailable. Please try again in a moment.";
+    }
+    
     console.log("🔍 Querying database for extracted texts...");
     
     const rows = await db
@@ -46,7 +57,7 @@ export async function getAllExtractedTexts(): Promise<string> {
       message: err instanceof Error ? err.message : "Unknown error",
       stack: err instanceof Error ? err.stack : "No stack"
     });
-    return "Database connection failed. Unable to retrieve SOYOSOYO SACCO documents.";
+    return "Unable to retrieve SOYOSOYO SACCO documents due to database error.";
   }
 }
 
@@ -60,7 +71,7 @@ export async function generateChatResponse(userMessage: string): Promise<string>
     const extractedTexts = await getAllExtractedTexts();
     console.log(`📊 Extracted texts received, length: ${extractedTexts.length}`);
 
-    if (extractedTexts.includes("Database connection failed") || extractedTexts.includes("No documents")) {
+    if (extractedTexts.includes("Database connection") || extractedTexts.includes("Unable to retrieve") || extractedTexts.includes("No documents")) {
       console.log("❌ No valid document data available");
       return "I apologize, but I'm currently unable to access the SOYOSOYO SACCO documents due to a technical issue. Please try again in a moment, or contact support if the issue persists.";
     }
@@ -76,13 +87,15 @@ RESPONSE GUIDELINES:
 - Include relevant details like chairperson names, policy numbers, specific rates, and procedures
 - Be conversational but professional
 - Always cite specific information from the documents when available
+- When mentioning leadership or officials, include their full names and titles as found in the documents
 
 FORMATTING RULES:
 - Use **bold** for important names, amounts, and key terms
 - Use bullet points for lists and requirements
 - Include specific details like names, dates, and amounts when available
+- Format information clearly for easy reading
 
-You have access to official SOYOSOYO SACCO documents that contain detailed information including leadership details, policies, procedures, and member information.`
+You have access to official SOYOSOYO SACCO documents that contain detailed information including leadership details, policies, procedures, and member information. Always provide comprehensive answers based on the document content.`
       },
       {
         role: "user",
@@ -93,7 +106,7 @@ QUESTION: ${userMessage}
 SOYOSOYO SACCO DOCUMENTS:
 ${extractedTexts}
 
-Please provide a detailed, helpful response using the information from these documents. Include specific names, amounts, and details when available.`
+Please provide a detailed, helpful response using the information from these documents. Include specific names, amounts, and details when available. If asking about leadership or officials, provide their full names and titles as mentioned in the documents.`
       }
     ];
 
@@ -122,7 +135,9 @@ Please provide a detailed, helpful response using the information from these doc
   }
 }
 
-// Keep existing functions...
+// -----------------------------
+// File analysis function
+// -----------------------------
 export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
@@ -130,11 +145,16 @@ export async function analyzeFileContent(content: string, fileName: string, mime
       messages: [
         {
           role: "system",
-          content: "You are a file analysis assistant for SOYOSOYO SACCO. Create a brief, informative summary highlighting key information."
+          content: "You are a file analysis assistant for SOYOSOYO SACCO. Create a brief, informative summary highlighting key information that would be useful for SACCO member inquiries."
         },
         {
           role: "user",
-          content: `Analyze this SOYOSOYO SACCO document: ${fileName}\n\nContent: ${content}\n\nProvide a summary highlighting key information like leadership names, policies, procedures, and member-relevant details.`
+          content: `Analyze this SOYOSOYO SACCO document and provide a summary highlighting key information:
+
+File: ${fileName} (${mimeType})
+Content: ${content}
+
+Focus on: leadership names, policies, procedures, rates, requirements, and any member-relevant information. Provide a summary in 50-100 words.`
         }
       ],
       max_tokens: 300,
@@ -148,11 +168,15 @@ export async function analyzeFileContent(content: string, fileName: string, mime
   }
 }
 
+// -----------------------------
+// Image generation function
+// -----------------------------
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
     
-    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white.`;
+    // Create SACCO-themed prompt
+    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
     
     const response = await openai.images.generate({
       model: "dall-e-3",
@@ -168,6 +192,7 @@ export async function generateImage(prompt: string, userId?: string): Promise<st
       throw new Error("No image URL returned from OpenAI");
     }
 
+    console.log("Image generated successfully:", imageUrl);
     return imageUrl;
   } catch (error) {
     console.error("Image generation error:", error);
