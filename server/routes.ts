@@ -19,7 +19,7 @@ const upload = multer({
     
     const allowedTypes = [
       'application/pdf',
-      'text/plain',
+      'text/plain', 
       'text/csv',
       'application/json',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -177,7 +177,7 @@ export async function registerRoutes(app: express.Express) {
     next();
   });
 
-  // IMPROVED UPLOAD ENDPOINT with comprehensive error handling
+  // FIXED UPLOAD ENDPOINT with comprehensive error handling
   router.post("/api/upload", (req, res, next) => {
     console.log("🔄 Upload endpoint hit");
     
@@ -227,7 +227,7 @@ export async function registerRoutes(app: express.Express) {
       if (!dbConnected) {
         console.log("❌ Database not available");
         return res.status(503).json({
-          error: "Database temporarily unavailable",
+          error: "Database temporarily unavailable", 
           message: "Please try uploading again in a moment"
         });
       }
@@ -437,7 +437,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // FIXED CHAT ENDPOINT - Pass conversation ID to AI
+  // ✅ FIXED CHAT ENDPOINT - Correct parameters for generateChatResponse
   router.post("/api/chat", async (req, res) => {
     try {
       const { message, conversationId } = req.body;
@@ -474,7 +474,7 @@ export async function registerRoutes(app: express.Express) {
         role: "user",
       });
 
-      // ✅ FIXED: Pass conversation ID to generateChatResponse for context
+      // ✅ FIXED: Pass conversation ID to generateChatResponse for context + smart tokens
       const { generateChatResponse } = await import("./services/openai.js");
       const aiResponse = await generateChatResponse(message, conversation.id);
 
@@ -509,7 +509,7 @@ export async function registerRoutes(app: express.Express) {
 
       await storage.createApiLog({
         endpoint: "/api/generate-image",
-        method: "POST",
+        method: "POST", 
         statusCode: 200,
         responseTime: 0,
         success: true,
