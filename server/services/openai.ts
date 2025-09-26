@@ -12,7 +12,7 @@ const openai = new OpenAI({
 // -----------------------------
 function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTokens: number } {
   const lowerQ = question.toLowerCase();
-  
+
   // Simple question patterns (short answers needed)
   const simplePatterns = [
     /^(who is|what is|when|where|how much|what time|is there|do you|can i|what's)/,
@@ -21,18 +21,18 @@ function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTo
     /(yes|no|true|false)/,
     /^.{1,50}$/ // Very short questions
   ];
-  
-  // Complex question patterns (detailed answers needed)  
+
+  // Complex question patterns (detailed answers needed)
   const complexPatterns = [
     /(how to|process|procedure|steps|requirements|application|compare|difference|explain|describe)/,
     /(loan|credit|savings|investment|account|policy|bylaw)/,
     /(eligibility|qualification|benefits|terms|conditions)/,
     /\b(and|or)\b.*\b(and|or)\b/ // Multiple questions
   ];
-  
+
   const isSimpleQuestion = simplePatterns.some(pattern => pattern.test(lowerQ));
   const isComplexQuestion = complexPatterns.some(pattern => pattern.test(lowerQ));
-  
+
   if (isSimpleQuestion && !isComplexQuestion) {
     return { isSimple: true, maxTokens: 150 }; // Brief response
   } else if (isComplexQuestion) {
@@ -48,17 +48,17 @@ function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTo
 export async function getAllExtractedTexts(): Promise<string> {
   try {
     console.log("🔍 Testing database connection...");
-    
+
     const { testDatabaseConnection } = await import("../db.js");
     const isConnected = await testDatabaseConnection();
-    
+
     if (!isConnected) {
       console.log("❌ Database connection failed");
       return "Database connection is currently unavailable.";
     }
-    
+
     console.log("🔍 Querying database for extracted texts...");
-    
+
     const rows = await db
       .select({
         text: uploadedFiles.extractedText,
@@ -67,9 +67,9 @@ export async function getAllExtractedTexts(): Promise<string> {
       })
       .from(uploadedFiles)
       .where(isNotNull(uploadedFiles.extractedText));
-    
+
     console.log(`📊 Found ${rows.length} total files with text`);
-    
+
     const validRows = rows.filter(r => r.text && r.text.trim().length > 0);
 
     if (validRows.length === 0) {
@@ -94,10 +94,10 @@ export async function getAllExtractedTexts(): Promise<string> {
 export async function generateChatResponse(userMessage: string, conversationId?: string): Promise<string> {
   try {
     console.log(`🤖 Processing: "${userMessage}" (conversation: ${conversationId || 'new'})`);
-    
+
     const extractedTexts = await getAllExtractedTexts();
     const { isSimple, maxTokens } = analyzeQuestionComplexity(userMessage);
-    
+
     console.log(`📊 Question type: ${isSimple ? 'Simple' : 'Complex'}, Max tokens: ${maxTokens}`);
 
     if (extractedTexts.includes("Database connection") || extractedTexts.includes("Unable to retrieve") || extractedTexts.includes("No documents")) {
@@ -105,7 +105,7 @@ export async function generateChatResponse(userMessage: string, conversationId?:
     }
 
     // Smart system prompt based on question complexity
-    const systemContent = isSimple 
+    const systemContent = isSimple
       ? `You are the SOYOSOYO SACCO Assistant. Provide brief, direct answers using the documents and conversation history.
 
 CONTEXT RULES:
@@ -117,7 +117,7 @@ CONTEXT RULES:
 
 SOYOSOYO SACCO DOCUMENTS:
 ${extractedTexts}`
-      
+
       : `You are the SOYOSOYO SACCO Assistant. Provide comprehensive information using the documents and conversation history.
 
 CONTEXT RULES:
@@ -145,10 +145,10 @@ ${extractedTexts}`;
     if (conversationId) {
       try {
         console.log(`🔍 Retrieving conversation history for: ${conversationId}`);
-        
+
         const { messages } = await import("../../shared/schema.js");
         const { eq } = await import("drizzle-orm");
-        
+
         const conversationMessages = await db
           .select({
             role: messages.role,
@@ -245,9 +245,9 @@ export async function analyzeFileContent(content: string, fileName: string, mime
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
-    
+
     const saccoPrompt = `Professional SACCO themed image: ${prompt}. Style: clean, professional, financial services. Colors: teal (#1e7b85), light green (#7dd3c0), white.`;
-    
+
     const response = await openai.images.generate({
       model: "dall-e-3",
       prompt: saccoPrompt,
