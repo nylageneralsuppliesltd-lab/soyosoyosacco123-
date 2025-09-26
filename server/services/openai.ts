@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import { db } from "../db";
-import { uploadedFiles } from "../../shared/schema";
+import { db } from "../db.js";
+import { uploadedFiles } from "../../shared/schema.js";
 import { isNotNull } from "drizzle-orm";
 
 const openai = new OpenAI({
@@ -49,7 +49,7 @@ export async function getAllExtractedTexts(): Promise<string> {
   try {
     console.log("🔍 Testing database connection...");
     
-    const { testDatabaseConnection } = await import("../db");
+    const { testDatabaseConnection } = await import("../db.js");
     const isConnected = await testDatabaseConnection();
     
     if (!isConnected) {
@@ -146,7 +146,7 @@ ${extractedTexts}`;
       try {
         console.log(`🔍 Retrieving conversation history for: ${conversationId}`);
         
-        const { messages } = await import("../../shared/schema");
+        const { messages } = await import("../../shared/schema.js");
         const { eq } = await import("drizzle-orm");
         
         const conversationMessages = await db
