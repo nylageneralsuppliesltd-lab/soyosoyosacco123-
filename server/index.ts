@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const server = createServer(app);
 
-// Remove multer setup - handle in routes only
+// Remove conflicting multer setup - handle in routes only
 app.use((req, res, next) => {
   console.log(`DEBUG: ${req.method} ${req.url}`);
   res.header('Access-Control-Allow-Origin', '*');
@@ -20,7 +20,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-// Remove: app.use(upload.any()); // ❌ This was causing conflicts
+// ✅ REMOVED: app.use(upload.any()); // This was causing upload conflicts
 app.use(express.static(path.resolve(__dirname, '..', 'public')));
 
 async function initializeServer() {
