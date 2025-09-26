@@ -6,17 +6,17 @@ import { insertFileSchema, uploadedFiles, conversations, messages, apiLogs } fro
 import { db, testDatabaseConnection } from "./db.js";
 import { eq } from "drizzle-orm";
 
-// Single multer configuration - increased limits and better error handling
+// Single multer configuration - FIXED: removed syntax errors
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { 
+  limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
     files: 1, // Only allow 1 file per request
     fieldSize: 1024 * 1024 // 1MB field size limit
   },
   fileFilter: (req, file, cb) => {
     console.log(`🔍 Checking file: ${file.originalname} (${file.mimetype})`);
-    
+
     const allowedTypes = [
       'application/pdf',
       'text/plain', 
@@ -180,36 +180,36 @@ export async function registerRoutes(app: express.Express) {
   // FIXED UPLOAD ENDPOINT with comprehensive error handling
   router.post("/api/upload", (req, res, next) => {
     console.log("🔄 Upload endpoint hit");
-    
+
     upload.single("file")(req, res, (err) => {
       if (err) {
         console.error("❌ Multer error:", err);
-        
+
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({
             error: "File too large",
             message: "File size must be less than 10MB"
           });
         }
-        
+
         if (err.message.includes("Unsupported file type")) {
           return res.status(400).json({
             error: "Unsupported file type",
             message: err.message
           });
         }
-        
+
         return res.status(400).json({
           error: "Upload error",
           message: err.message || "Failed to upload file"
         });
       }
-      
+
       next();
     });
   }, async (req, res) => {
     console.log("🔄 Processing upload request");
-    
+
     try {
       if (!req.file) {
         console.log("❌ No file in request");
@@ -227,7 +227,7 @@ export async function registerRoutes(app: express.Express) {
       if (!dbConnected) {
         console.log("❌ Database not available");
         return res.status(503).json({
-          error: "Database temporarily unavailable", 
+          error: "Database temporarily unavailable",
           message: "Please try uploading again in a moment"
         });
       }
@@ -235,7 +235,7 @@ export async function registerRoutes(app: express.Express) {
       // Process file with timeout
       console.log("🔄 Starting file processing...");
       const startTime = Date.now();
-      
+
       const processingPromise = processUploadedFile(file.buffer, file.originalname, file.mimetype);
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("File processing timeout after 30 seconds")), 30000)
@@ -243,7 +243,7 @@ export async function registerRoutes(app: express.Express) {
 
       const { extractedText, analysis } = await Promise.race([processingPromise, timeoutPromise]);
       const processingTime = Date.now() - startTime;
-      
+
       console.log(`✅ File processed in ${processingTime}ms: ${extractedText.length} chars extracted`);
 
       // Prepare and validate file data
@@ -341,17 +341,17 @@ export async function registerRoutes(app: express.Express) {
       if (!file) {
         return res.status(404).json({ error: "File not found" });
       }
-      
+
       const [dbFile] = await db
         .select({ content: uploadedFiles.content, mimeType: uploadedFiles.mimeType, originalName: uploadedFiles.originalName })
         .from(uploadedFiles)
         .where(eq(uploadedFiles.id, req.params.id))
         .limit(1);
-        
+
       if (!dbFile?.content) {
         return res.status(404).json({ error: "File content not found" });
       }
-      
+
       const buffer = Buffer.from(dbFile.content, "base64");
       res.set({
         "Content-Type": dbFile.mimeType,
@@ -367,7 +367,7 @@ export async function registerRoutes(app: express.Express) {
   router.get("/api/stats", async (req, res) => {
     try {
       const dbConnected = await testDatabaseConnection();
-      
+
       if (!dbConnected) {
         return res.status(503).json({
           error: "Database unavailable",
@@ -377,7 +377,7 @@ export async function registerRoutes(app: express.Express) {
 
       const [conversations, files, apiLogs] = await Promise.all([
         storage.getAllConversations(),
-        storage.getAllFiles(), 
+        storage.getAllFiles(),
         storage.getApiLogs()
       ]);
 
@@ -437,7 +437,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // ✅ FIXED CHAT ENDPOINT - Correct parameters for generateChatResponse
+  // Chat endpoint - optimized for conversation context
   router.post("/api/chat", async (req, res) => {
     try {
       const { message, conversationId } = req.body;
@@ -449,7 +449,7 @@ export async function registerRoutes(app: express.Express) {
       // Check database connectivity
       const dbConnected = await testDatabaseConnection();
       if (!dbConnected) {
-        return res.status(503).json({ 
+        return res.status(503).json({
           error: "Service temporarily unavailable",
           message: "Database connection issue. Please try again."
         });
@@ -474,7 +474,7 @@ export async function registerRoutes(app: express.Express) {
         role: "user",
       });
 
-      // ✅ FIXED: Pass conversation ID to generateChatResponse for context + smart tokens
+      // Generate AI response with conversation context
       const { generateChatResponse } = await import("./services/openai.js");
       const aiResponse = await generateChatResponse(message, conversation.id);
 
@@ -511,9 +511,7 @@ export async function registerRoutes(app: express.Express) {
         endpoint: "/api/generate-image",
         method: "POST", 
         statusCode: 200,
-        responseTime: 0,
-        success: true,
-        metadata: { prompt, conversationId, imageUrl }
+        responseTime: 0
       });
 
       res.json({ imageUrl, prompt, success: true });
@@ -525,8 +523,7 @@ export async function registerRoutes(app: express.Express) {
         method: "POST",
         statusCode: 500,
         responseTime: 0,
-        success: false,
-        metadata: { prompt: req.body.prompt, error: error instanceof Error ? error.message : "Unknown error" }
+        errorMessage: error instanceof Error ? error.message : "Unknown error"
       });
 
       res.status(500).json({
