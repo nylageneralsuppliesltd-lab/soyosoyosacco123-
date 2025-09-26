@@ -1,7 +1,7 @@
-// server/services/openai.ts
 import OpenAI from "openai";
 import { db } from "../db";
 import { uploadedFiles } from "../../shared/schema";
+import { isNotNull } from "drizzle-orm";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
@@ -65,9 +65,10 @@ export async function getAllExtractedTexts(): Promise<string> {
         filename: uploadedFiles.originalName,
         id: uploadedFiles.id
       })
-      .from(uploadedFiles);
+      .from(uploadedFiles)
+      .where(isNotNull(uploadedFiles.extractedText));
     
-    console.log(`📊 Found ${rows.length} total files, ${rows.filter(r => r.text?.trim()).length} with text`);
+    console.log(`📊 Found ${rows.length} total files with text`);
     
     const validRows = rows.filter(r => r.text && r.text.trim().length > 0);
 
@@ -88,11 +89,11 @@ export async function getAllExtractedTexts(): Promise<string> {
 }
 
 // -----------------------------
-// Generate chat response with smart token management
+// Generate chat response with conversation context + smart tokens
 // -----------------------------
-export async function generateChatResponse(userMessage: string): Promise<string> {
+export async function generateChatResponse(userMessage: string, conversationId?: string): Promise<string> {
   try {
-    console.log(`🤖 Processing: "${userMessage}"`);
+    console.log(`🤖 Processing: "${userMessage}" (conversation: ${conversationId || 'new'})`);
     
     const extractedTexts = await getAllExtractedTexts();
     const { isSimple, maxTokens } = analyzeQuestionComplexity(userMessage);
@@ -105,40 +106,93 @@ export async function generateChatResponse(userMessage: string): Promise<string>
 
     // Smart system prompt based on question complexity
     const systemContent = isSimple 
-      ? `You are the SOYOSOYO SACCO Assistant. Provide brief, direct answers using the documents.
+      ? `You are the SOYOSOYO SACCO Assistant. Provide brief, direct answers using the documents and conversation history.
 
-RESPONSE RULES:
+CONTEXT RULES:
+- Use SOYOSOYO SACCO documents as primary source
+- Remember previous conversation context for follow-up questions
 - Keep answers concise (1-3 sentences for simple questions)
 - Include specific names, amounts, or details when asked
 - Use **bold** for key information only
-- No unnecessary formatting or explanations`
-      
-      : `You are the SOYOSOYO SACCO Assistant. Provide comprehensive information using the documents.
 
-RESPONSE RULES:
-- Detailed responses for complex questions
-- Include relevant details like names, amounts, procedures
+SOYOSOYO SACCO DOCUMENTS:
+${extractedTexts}`
+      
+      : `You are the SOYOSOYO SACCO Assistant. Provide comprehensive information using the documents and conversation history.
+
+CONTEXT RULES:
+- Use SOYOSOYO SACCO documents as primary knowledge base
+- Maintain conversation context to answer follow-up questions naturally
+- When users refer to previous answers ("tell me more about that"), use conversation history
+- If information isn't in documents OR previous conversation, say: "I don't have that information in the SOYOSOYO SACCO documents."
+
+RESPONSE STYLE:
+- Be helpful and conversational
+- Remember what was discussed earlier
+- Provide specific details (names, amounts, procedures)
 - Use **bold** for important information
 - Use bullet points for lists when helpful
-- Be thorough but avoid redundancy`;
 
-    const userContent = isSimple
-      ? `Answer briefly using SOYOSOYO SACCO documents:
+SOYOSOYO SACCO DOCUMENTS:
+${extractedTexts}`;
 
-QUESTION: ${userMessage}
-DOCUMENTS: ${extractedTexts}`
-      
-      : `Answer comprehensively using SOYOSOYO SACCO documents:
-
-QUESTION: ${userMessage}
-DOCUMENTS: ${extractedTexts}`;
-
+    // Start with system message
     const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemContent },
-      { role: "user", content: userContent }
+      { role: "system", content: systemContent }
     ];
 
-    console.log(`🚀 Sending to OpenAI (${maxTokens} tokens max)`);
+    // Add conversation history if available
+    if (conversationId) {
+      try {
+        console.log(`🔍 Retrieving conversation history for: ${conversationId}`);
+        
+        const { messages } = await import("../../shared/schema");
+        const { eq } = await import("drizzle-orm");
+        
+        const conversationMessages = await db
+          .select({
+            role: messages.role,
+            content: messages.content,
+            timestamp: messages.timestamp
+          })
+          .from(messages)
+          .where(eq(messages.conversationId, conversationId))
+          .orderBy(messages.timestamp);
+
+        console.log(`📜 Found ${conversationMessages.length} previous messages`);
+
+        // Add previous messages (excluding the current one we're about to add)
+        for (const msg of conversationMessages) {
+          if (msg.role === "user" || msg.role === "assistant") {
+            messagesToSend.push({
+              role: msg.role as "user" | "assistant",
+              content: msg.content
+            });
+          }
+        }
+
+        // Limit message history to prevent token overflow (keep system + last 8 exchanges for simple, 6 for complex)
+        const maxMessages = isSimple ? 17 : 13; // system + 16/12 messages (8/6 exchanges)
+        if (messagesToSend.length > maxMessages) {
+          const systemMessage = messagesToSend[0];
+          const recentMessages = messagesToSend.slice(-(maxMessages - 1));
+          messagesToSend.splice(0, messagesToSend.length, systemMessage, ...recentMessages);
+          console.log(`⚠️ Limited to last ${(maxMessages - 1) / 2} conversation exchanges`);
+        }
+
+      } catch (historyError) {
+        console.error("❌ Error retrieving conversation history:", historyError);
+        // Continue without history rather than failing
+      }
+    }
+
+    // Add current user message
+    messagesToSend.push({
+      role: "user",
+      content: userMessage
+    });
+
+    console.log(`🚀 Sending ${messagesToSend.length} messages to OpenAI (${maxTokens} tokens max)`);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
