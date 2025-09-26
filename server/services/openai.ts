@@ -8,19 +8,53 @@ const openai = new OpenAI({
 });
 
 // -----------------------------
+// Analyze question complexity for response sizing
+// -----------------------------
+function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTokens: number } {
+  const lowerQ = question.toLowerCase();
+  
+  // Simple question patterns (short answers needed)
+  const simplePatterns = [
+    /^(who is|what is|when|where|how much|what time|is there|do you|can i|what's)/,
+    /(chairperson|president|secretary|treasurer|manager)/,
+    /(phone|email|address|location|hours|rate|fee)/,
+    /(yes|no|true|false)/,
+    /^.{1,50}$/ // Very short questions
+  ];
+  
+  // Complex question patterns (detailed answers needed)  
+  const complexPatterns = [
+    /(how to|process|procedure|steps|requirements|application|compare|difference|explain|describe)/,
+    /(loan|credit|savings|investment|account|policy|bylaw)/,
+    /(eligibility|qualification|benefits|terms|conditions)/,
+    /\b(and|or)\b.*\b(and|or)\b/ // Multiple questions
+  ];
+  
+  const isSimpleQuestion = simplePatterns.some(pattern => pattern.test(lowerQ));
+  const isComplexQuestion = complexPatterns.some(pattern => pattern.test(lowerQ));
+  
+  if (isSimpleQuestion && !isComplexQuestion) {
+    return { isSimple: true, maxTokens: 150 }; // Brief response
+  } else if (isComplexQuestion) {
+    return { isSimple: false, maxTokens: 800 }; // Detailed response
+  } else {
+    return { isSimple: false, maxTokens: 400 }; // Medium response
+  }
+}
+
+// -----------------------------
 // Fetch extracted texts from DB with connection testing
 // -----------------------------
 export async function getAllExtractedTexts(): Promise<string> {
   try {
     console.log("🔍 Testing database connection...");
     
-    // Test connection first
     const { testDatabaseConnection } = await import("../db");
     const isConnected = await testDatabaseConnection();
     
     if (!isConnected) {
       console.log("❌ Database connection failed");
-      return "Database connection is currently unavailable. Please try again in a moment.";
+      return "Database connection is currently unavailable.";
     }
     
     console.log("🔍 Querying database for extracted texts...");
@@ -33,110 +67,98 @@ export async function getAllExtractedTexts(): Promise<string> {
       })
       .from(uploadedFiles);
     
-    console.log(`📊 Found ${rows.length} total files in database`);
+    console.log(`📊 Found ${rows.length} total files, ${rows.filter(r => r.text?.trim()).length} with text`);
     
     const validRows = rows.filter(r => r.text && r.text.trim().length > 0);
-    console.log(`✅ Found ${validRows.length} files with extracted text`);
 
     if (validRows.length === 0) {
-      console.log("⚠️ No files with extracted text found");
-      return "No documents with extracted text found in the database.";
+      return "No documents with extracted text found.";
     }
 
     const allTexts = validRows
       .map((r, i) => `=== ${r.filename || `Document ${i + 1}`} ===\n${r.text}`)
       .join("\n\n");
 
-    console.log(`📝 Total extracted text length: ${allTexts.length} characters`);
-    console.log(`🔍 Preview: ${allTexts.substring(0, 300)}...`);
-
+    console.log(`📝 Total extracted text: ${allTexts.length} chars`);
     return allTexts;
   } catch (err) {
     console.error("❌ Database query failed:", err);
-    console.error("❌ Error details:", {
-      message: err instanceof Error ? err.message : "Unknown error",
-      stack: err instanceof Error ? err.stack : "No stack"
-    });
-    return "Unable to retrieve SOYOSOYO SACCO documents due to database error.";
+    return "Unable to retrieve SOYOSOYO SACCO documents.";
   }
 }
 
 // -----------------------------
-// Generate chat response using DB content with detailed logging
+// Generate chat response with smart token management
 // -----------------------------
 export async function generateChatResponse(userMessage: string): Promise<string> {
   try {
-    console.log(`🤖 Processing chat request: "${userMessage}"`);
+    console.log(`🤖 Processing: "${userMessage}"`);
     
     const extractedTexts = await getAllExtractedTexts();
-    console.log(`📊 Extracted texts received, length: ${extractedTexts.length}`);
+    const { isSimple, maxTokens } = analyzeQuestionComplexity(userMessage);
+    
+    console.log(`📊 Question type: ${isSimple ? 'Simple' : 'Complex'}, Max tokens: ${maxTokens}`);
 
     if (extractedTexts.includes("Database connection") || extractedTexts.includes("Unable to retrieve") || extractedTexts.includes("No documents")) {
-      console.log("❌ No valid document data available");
-      return "I apologize, but I'm currently unable to access the SOYOSOYO SACCO documents due to a technical issue. Please try again in a moment, or contact support if the issue persists.";
+      return "I'm currently unable to access the SOYOSOYO SACCO documents. Please try again in a moment.";
     }
 
-    const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `You are the SOYOSOYO SACCO Assistant, a knowledgeable and helpful AI that provides accurate information about SOYOSOYO SACCO services, policies, and procedures.
+    // Smart system prompt based on question complexity
+    const systemContent = isSimple 
+      ? `You are the SOYOSOYO SACCO Assistant. Provide brief, direct answers using the documents.
 
-RESPONSE GUIDELINES:
-- Use the uploaded SOYOSOYO SACCO documents as your PRIMARY source
-- Provide detailed, helpful responses with specific information (names, amounts, procedures)
-- Include relevant details like chairperson names, policy numbers, specific rates, and procedures
-- Be conversational but professional
-- Always cite specific information from the documents when available
-- When mentioning leadership or officials, include their full names and titles as found in the documents
+RESPONSE RULES:
+- Keep answers concise (1-3 sentences for simple questions)
+- Include specific names, amounts, or details when asked
+- Use **bold** for key information only
+- No unnecessary formatting or explanations`
+      
+      : `You are the SOYOSOYO SACCO Assistant. Provide comprehensive information using the documents.
 
-FORMATTING RULES:
-- Use **bold** for important names, amounts, and key terms
-- Use bullet points for lists and requirements
-- Include specific details like names, dates, and amounts when available
-- Format information clearly for easy reading
+RESPONSE RULES:
+- Detailed responses for complex questions
+- Include relevant details like names, amounts, procedures
+- Use **bold** for important information
+- Use bullet points for lists when helpful
+- Be thorough but avoid redundancy`;
 
-You have access to official SOYOSOYO SACCO documents that contain detailed information including leadership details, policies, procedures, and member information. Always provide comprehensive answers based on the document content.`
-      },
-      {
-        role: "user",
-        content: `Based on the SOYOSOYO SACCO documents provided below, please answer this question with specific details:
+    const userContent = isSimple
+      ? `Answer briefly using SOYOSOYO SACCO documents:
 
 QUESTION: ${userMessage}
+DOCUMENTS: ${extractedTexts}`
+      
+      : `Answer comprehensively using SOYOSOYO SACCO documents:
 
-SOYOSOYO SACCO DOCUMENTS:
-${extractedTexts}
+QUESTION: ${userMessage}
+DOCUMENTS: ${extractedTexts}`;
 
-Please provide a detailed, helpful response using the information from these documents. Include specific names, amounts, and details when available. If asking about leadership or officials, provide their full names and titles as mentioned in the documents.`
-      }
+    const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent }
     ];
 
-    console.log("🚀 Sending request to OpenAI...");
-    console.log(`📊 Total prompt length: ${JSON.stringify(messagesToSend).length} characters`);
+    console.log(`🚀 Sending to OpenAI (${maxTokens} tokens max)`);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messagesToSend,
-      max_tokens: 1200,
+      max_tokens: maxTokens,
       temperature: 0.1,
     });
 
     const aiResponse = response.choices[0].message.content || "I couldn't generate a response.";
-    console.log(`✅ OpenAI response received, length: ${aiResponse.length}`);
-    console.log(`📝 Response preview: ${aiResponse.substring(0, 200)}...`);
+    console.log(`✅ Response: ${aiResponse.length} chars`);
 
     return aiResponse;
   } catch (error) {
-    console.error("❌ OpenAI API error:", error);
-    console.error("❌ Error details:", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : "No stack"
-    });
-    return "I apologize, but I'm currently experiencing technical difficulties. Please try your question again in a moment.";
+    console.error("❌ OpenAI error:", error);
+    return "I'm currently experiencing technical difficulties. Please try again.";
   }
 }
 
 // -----------------------------
-// File analysis function
+// File analysis function (optimized)
 // -----------------------------
 export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
@@ -145,38 +167,32 @@ export async function analyzeFileContent(content: string, fileName: string, mime
       messages: [
         {
           role: "system",
-          content: "You are a file analysis assistant for SOYOSOYO SACCO. Create a brief, informative summary highlighting key information that would be useful for SACCO member inquiries."
+          content: "Provide a concise summary (50-80 words) highlighting key SACCO information."
         },
         {
           role: "user",
-          content: `Analyze this SOYOSOYO SACCO document and provide a summary highlighting key information:
-
-File: ${fileName} (${mimeType})
-Content: ${content}
-
-Focus on: leadership names, policies, procedures, rates, requirements, and any member-relevant information. Provide a summary in 50-100 words.`
+          content: `Summarize key information from: ${fileName}\n\nContent: ${content.substring(0, 2000)}...\n\nFocus on: leadership, policies, procedures, rates, requirements.`
         }
       ],
-      max_tokens: 300,
+      max_tokens: 150,
       temperature: 0.1,
     });
 
-    return response.choices[0].message.content || "Could not analyze file content.";
+    return response.choices[0].message.content || "Could not analyze file.";
   } catch (error) {
     console.error("File analysis error:", error);
-    return `Failed to analyze ${fileName}: ${error instanceof Error ? error.message : "Unknown error"}`;
+    return `Failed to analyze ${fileName}.`;
   }
 }
 
 // -----------------------------
-// Image generation function
+// Image generation function (unchanged)
 // -----------------------------
 export async function generateImage(prompt: string, userId?: string): Promise<string> {
   try {
     console.log("Generating image with prompt:", prompt);
     
-    // Create SACCO-themed prompt
-    const saccoPrompt = `Professional SACCO (Savings and Credit Cooperative) themed image: ${prompt}. Style: clean, professional, financial services, modern, trustworthy. Colors: teal (#1e7b85), light green (#7dd3c0), white. High quality, suitable for banking/financial website.`;
+    const saccoPrompt = `Professional SACCO themed image: ${prompt}. Style: clean, professional, financial services. Colors: teal (#1e7b85), light green (#7dd3c0), white.`;
     
     const response = await openai.images.generate({
       model: "dall-e-3",
@@ -189,10 +205,9 @@ export async function generateImage(prompt: string, userId?: string): Promise<st
 
     const imageUrl = response.data?.[0]?.url;
     if (!imageUrl) {
-      throw new Error("No image URL returned from OpenAI");
+      throw new Error("No image URL returned");
     }
 
-    console.log("Image generated successfully:", imageUrl);
     return imageUrl;
   } catch (error) {
     console.error("Image generation error:", error);
