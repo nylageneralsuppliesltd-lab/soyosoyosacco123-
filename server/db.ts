@@ -11,30 +11,23 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes('neon') ? { rejectUnauthorized: false } : undefined,
 });
 
-// Handle pool errors gracefully without crashing
+// Prevent crashes with graceful error handling
 pool.on('error', (err, client) => {
   console.error(`❌ Database pool error: ${err.message}`);
-  console.error('❌ Error details:', {
-    code: err.code,
-    errno: err.errno,
-    syscall: err.syscall,
-    hostname: err.hostname
-  });
-  // Don't crash the app - just log the error
+  console.error('❌ Error code:', err.code);
+  // Don't crash - just log and continue
 });
 
-// Handle client connection errors
 pool.on('connect', (client) => {
-  console.log('✅ New database client connected');
+  console.log('✅ Database client connected');
   
-  // Handle individual client errors
   client.on('error', (err) => {
     console.error('❌ Database client error:', err.message);
-    // Don't throw - just log
+    // Don't crash - handle gracefully
   });
 });
 
-// Test connection on startup with better error handling
+// Test connection without crashing on failure
 pool.connect()
   .then((client) => {
     console.log("✅ Database connected successfully");
@@ -43,15 +36,10 @@ pool.connect()
   })
   .catch((err) => {
     console.error(`❌ Failed to connect to database: ${err.message}`);
-    console.error('❌ Connection details:', {
-      code: err.code,
-      errno: err.errno,
-      syscall: err.syscall
-    });
-    // Don't exit - let the app continue and retry connections as needed
+    // Don't exit - let app continue
   });
 
-// Handle process termination
+// Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🔄 Received SIGTERM, closing database pool...');
   await pool.end();
@@ -60,13 +48,13 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('🔄 Received SIGINT, closing database pool...');
-  await pool.end();
+  await pool.end();  
   process.exit(0);
 });
 
 export const db = drizzle(pool);
 
-// Export a function to test database connectivity
+// Test connectivity function
 export async function testDatabaseConnection(): Promise<boolean> {
   try {
     const client = await pool.connect();
