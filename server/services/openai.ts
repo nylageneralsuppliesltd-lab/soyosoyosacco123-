@@ -10,7 +10,7 @@ const openai = new OpenAI({
 // -----------------------------
 // Fetch all extracted texts
 // -----------------------------
-async function getAllExtractedTexts(): Promise<string> {
+export async function getAllExtractedTexts(): Promise<string> {
   try {
     const rows = await db
       .select({ text: uploadedFiles.extractedText })
@@ -95,11 +95,3 @@ export async function analyzeFileContent(content: string, fileName: string, mime
     throw new Error(`Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
-
-// -----------------------------
-// Exports
-// -----------------------------
-export {
-  getAllExtractedTexts,
-  analyzeFileContent
-};
