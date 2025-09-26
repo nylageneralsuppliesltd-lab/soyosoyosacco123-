@@ -3,57 +3,62 @@ import OpenAI from "openai";
 import { db } from "../db";
 import { uploadedFiles } from "@shared/schema";
 
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || ""
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
 });
 
 // -----------------------------
-// Fetch all extracted texts
+// Fetch extracted texts from DB
 // -----------------------------
 export async function getAllExtractedTexts(): Promise<string> {
   try {
     const rows = await db
       .select({ text: uploadedFiles.extractedText })
-      .from(uploadedFiles);
+      .from(uploadedFiles)
+      .where(uploadedFiles.extractedText.isNotNull());
 
     const allTexts = rows
       .map((r, i) => `Document ${i + 1}:\n${r.text}`)
-      .filter(Boolean)
       .join("\n\n");
 
-    return allTexts.length > 5000
-      ? allTexts.substring(0, 5000) + "\n...[truncated]"
-      : allTexts;
+    console.log("Fetched extracted texts length:", allTexts.length);
+    console.log("Fetched extracted texts preview:", allTexts.substring(0, 500));
+
+    return allTexts.length > 0
+      ? allTexts
+      : "No extracted text available.";
   } catch (err) {
     console.error("Error fetching extracted texts:", err);
-    return "No extracted text available.";
+    return "No extracted text available due to DB error.";
   }
 }
 
 // -----------------------------
-// Generate chat response
+// Generate chat response using only DB content
 // -----------------------------
 export async function generateChatResponse(userMessage: string): Promise<string> {
   try {
-    const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-
-    // Strict system prompt
-    messagesToSend.push({
-      role: "system",
-      content: `
-You are a SOYOSOYO SACCO assistant. ONLY use the reference materials provided below from uploaded documents.
-Do NOT use prior assistant replies, general knowledge, or the internet.
-If the answer is not in the reference material, respond exactly: "The information is not available."
-`
-    });
-
     const extractedTexts = await getAllExtractedTexts();
 
-    // User message with reference material
-    messagesToSend.push({
-      role: "user",
-      content: `Reference Material:\n${extractedTexts}\n\nUser Question:\n${userMessage}`
-    });
+    const messagesToSend: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `
+You are a strict assistant for SOYOSOYO SACCO.
+ONLY use the extracted texts provided below.
+Do NOT use prior assistant replies, training data, or the internet.
+If the answer is not in the extracted texts, respond exactly:
+"The information is not available."
+`
+      },
+      {
+        role: "user",
+        content: `EXTRACTED TEXTS:\n${extractedTexts}\n\nQUESTION: ${userMessage}`
+      }
+    ];
+
+    console.log("Sending to OpenAI. User message:", userMessage);
+    console.log("Extracted texts length sent:", extractedTexts.length);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -65,12 +70,12 @@ If the answer is not in the reference material, respond exactly: "The informatio
     return response.choices[0].message.content || "I couldn't generate a response.";
   } catch (error) {
     console.error("OpenAI API error:", error);
-    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`);
+    return `OpenAI error: ${error instanceof Error ? error.message : "Unknown error"}`;
   }
 }
 
 // -----------------------------
-// Analyze file content (keep for fileProcessor.ts)
+// Keep for fileProcessor.ts
 // -----------------------------
 export async function analyzeFileContent(content: string, fileName: string, mimeType: string): Promise<string> {
   try {
@@ -92,6 +97,6 @@ export async function analyzeFileContent(content: string, fileName: string, mime
     return response.choices[0].message.content || "Could not analyze file content.";
   } catch (error) {
     console.error("File analysis error:", error);
-    throw new Error(`Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`);
+    return `Failed to analyze file: ${error instanceof Error ? error.message : "Unknown error"}`;
   }
 }
