@@ -37,17 +37,7 @@ export const uploadedFiles = pgTable("uploaded_files", {
   processed: boolean("processed").default(false).notNull(),
 });
 
-// Summaries Cache Table (New for Caching)
-export const summaries = pgTable("summaries", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  fileId: varchar("file_id", { length: 36 }).references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fileName: text("file_name").notNull(),
-  hash: text("hash").notNull().unique(),  // SHA256 of content
-  summary: text("summary").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// API Logs Table
+// API Logs Table (FIXED)
 export const apiLogs = pgTable("api_logs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   endpoint: text("endpoint").notNull(),
@@ -55,7 +45,9 @@ export const apiLogs = pgTable("api_logs", {
   statusCode: integer("status_code").notNull(),
   responseTime: integer("response_time").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
+  success: boolean("success").default(true).notNull(),
   errorMessage: text("error_message"),
+  metadata: jsonb("metadata").default("{}"),
 });
 
 // Relations
@@ -76,63 +68,44 @@ export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
     fields: [uploadedFiles.conversationId],
     references: [conversations.id],
   }),
-  summaries: one(summaries, {
-    fields: [uploadedFiles.id],
-    references: [summaries.fileId],
-  }),
-}));
-
-export const summariesRelations = relations(summaries, ({ one }) => ({
-  file: one(uploadedFiles, {
-    fields: [summaries.fileId],
-    references: [uploadedFiles.id],
-  }),
 }));
 
 // Zod Schemas
-export const insertConversationSchema = createInsertSchema(conversations, { driver: "pg" }).omit({
+export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertMessageSchema = createInsertSchema(messages, { driver: "pg" }).omit({
+export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   timestamp: true,
   metadata: true,
 });
 
-export const insertFileSchema = createInsertSchema(uploadedFiles, { driver: "pg" }).omit({
+export const insertFileSchema = createInsertSchema(uploadedFiles).omit({
   id: true,
   uploadedAt: true,
   processed: true,
 });
 
-export const insertSummarySchema = createInsertSchema(summaries, { driver: "pg" }).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertApiLogSchema = createInsertSchema(apiLogs, { driver: "pg" }).omit({
+export const insertApiLogSchema = createInsertSchema(apiLogs).omit({
   id: true,
   timestamp: true,
 });
 
 // Types
 export type Conversation = typeof conversations.$inferSelect;
-export type InsertConversation = typeof insertConversationSchema.$inferInsert;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Message = typeof messages.$inferSelect;
-export type InsertMessage = typeof insertMessageSchema.$inferInsert;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type UploadedFile = typeof uploadedFiles.$inferSelect;
-export type InsertFile = typeof insertFileSchema.$inferInsert;
-
-export type Summary = typeof summaries.$inferSelect;
-export type InsertSummary = typeof insertSummarySchema.$inferInsert;
+export type InsertFile = z.infer<typeof insertFileSchema>;
 
 export type ApiLog = typeof apiLogs.$inferSelect;
-export type InsertApiLog = typeof insertApiLogSchema.$inferInsert;
+export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
 
 // Chat Schemas
 export const chatRequestSchema = z.object({
