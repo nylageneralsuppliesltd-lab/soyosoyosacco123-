@@ -27,13 +27,13 @@ fi
 
 echo "✅ Node.js build completed successfully!"
 
-# Install Python dependencies for financial upload
+# Install Python dependencies (FIXED VERSION)
 echo "🐍 Installing Python dependencies..."
-pip install pandas==2.2.2 psycopg2-binary==2.9.10 openpyxl==3.1.4 python-dotenv==1.0.0
+pip install --no-cache-dir pandas psycopg2-binary openpyxl python-dotenv
 
 # Check if financial file exists and upload to database
 echo "💰 Checking for financial files..."
-if [ -f "financials/21-SEP-2025 SOYOSOYO FINANCIALS (1).xlsx" ]; then
+if find financials -name "*.xlsx" -type f | head -1 | grep -q .; then
     echo "📊 Found financial file, uploading to database..."
     python upload_financials.py
     if [ $? -eq 0 ]; then
@@ -42,7 +42,7 @@ if [ -f "financials/21-SEP-2025 SOYOSOYO FINANCIALS (1).xlsx" ]; then
         echo "⚠️ Financial upload failed, but continuing deployment..."
     fi
 else
-    echo "ℹ️ No financial file found, skipping upload..."
+    echo "ℹ️ No Excel files found in financials folder..."
 fi
 
 echo "🎉 Build and deployment completed successfully!"
