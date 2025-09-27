@@ -31,14 +31,8 @@ echo "✅ Node.js build completed successfully!"
 echo "🐍 Installing Python dependencies..."
 pip install --no-cache-dir pandas psycopg2-binary openpyxl python-dotenv
 
-# Run Universal Excel Uploader (processes ALL Excel files)
-echo "📊 Running Universal Excel Uploader..."
-python universal_excel_uploader.py
-
-# Legacy financials upload (backup/fallback)
-echo "💰 Running legacy financials upload (if needed)..."
-if [ -f "upload_financials.py" ] && find financials -name "*.xlsx" -type f 2>/dev/null | grep -q .; then
-    python upload_financials.py || echo "⚠️ Legacy upload skipped"
-fi
+# Run Universal Document Uploader (processes ALL supported files)
+echo "📊 Running Universal Document Uploader..."
+python upload_financials.py
 
 echo "🎉 Build and deployment completed successfully!"
