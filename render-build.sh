@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔧 Starting Render build..."
+echo "🔧 Starting Render build with Universal Excel Processing..."
 
 # Install Node.js dependencies
 echo "📦 Installing Node.js dependencies..."
@@ -27,22 +27,18 @@ fi
 
 echo "✅ Node.js build completed successfully!"
 
-# Install Python dependencies (FIXED VERSION)
+# Install Python dependencies for universal Excel processing
 echo "🐍 Installing Python dependencies..."
 pip install --no-cache-dir pandas psycopg2-binary openpyxl python-dotenv
 
-# Check if financial file exists and upload to database
-echo "💰 Checking for financial files..."
-if find financials -name "*.xlsx" -type f | head -1 | grep -q .; then
-    echo "📊 Found financial file, uploading to database..."
-    python upload_financials.py
-    if [ $? -eq 0 ]; then
-        echo "✅ Financial data uploaded successfully!"
-    else
-        echo "⚠️ Financial upload failed, but continuing deployment..."
-    fi
-else
-    echo "ℹ️ No Excel files found in financials folder..."
+# Run Universal Excel Uploader (processes ALL Excel files)
+echo "📊 Running Universal Excel Uploader..."
+python universal_excel_uploader.py
+
+# Legacy financials upload (backup/fallback)
+echo "💰 Running legacy financials upload (if needed)..."
+if [ -f "upload_financials.py" ] && find financials -name "*.xlsx" -type f 2>/dev/null | grep -q .; then
+    python upload_financials.py || echo "⚠️ Legacy upload skipped"
 fi
 
 echo "🎉 Build and deployment completed successfully!"
