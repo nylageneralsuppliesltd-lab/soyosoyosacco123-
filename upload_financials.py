@@ -20,12 +20,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Directories to scan for files
 SCAN_DIRECTORIES = [
     "financials/",
-    "reports/", 
-    "data/",
-    "documents/",
-    "uploads/",
-    "files/"
-]
+       "uploads/",
+   ]
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {
