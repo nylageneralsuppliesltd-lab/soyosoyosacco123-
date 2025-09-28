@@ -16,13 +16,15 @@ pip install pandas psycopg2-binary openpyxl
 echo "📄 Installing PDF processing libraries..."
 pip install PyPDF2 pdfplumber
 
-# Optional: Install additional PDF libraries for better extraction
-echo "📋 Installing additional text processing libraries..."
-pip install python-docx2txt textract2 || echo "⚠️ Some optional libraries failed to install (non-critical)"
-
-# Install Node.js dependencies
 echo "📦 Installing Node.js dependencies..."
-npm ci --production=false
+# Fix package lock issues by using npm install instead of npm ci
+npm install --production=false
+
+# Alternative: If npm install fails, try cleaning and reinstalling
+# echo "🧹 Cleaning npm cache and node_modules..."
+# rm -rf node_modules package-lock.json
+# npm cache clean --force
+# npm install --production=false
 
 # Build the application
 echo "🔨 Building the application..."
