@@ -1,71 +1,78 @@
+// server/index.ts
 import express from "express";
-import { createServer } from "http";
-import { registerRoutes } from "./routes";
+import { registerRoutes } from "./routes.js";
+import { initializeDatabase } from "./db.js";
 import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs/promises";
-import multer from "multer";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const server = createServer(app);
-const upload = multer({ 
-  storage: multer.memoryStorage(), 
-  limits: { fileSize: 4 * 1024 * 1024 }  // 4MB max to prevent hangs
-});
+const port = process.env.PORT || 5000;
 
-app.use((req, res, next) => {
-  console.log(`DEBUG: ${req.method} ${req.url}`);
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
-app.use(express.json());
-app.use(upload.any());
-app.use(express.static(path.resolve(__dirname, '..', 'public')));
+// Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-async function initializeServer() {
-  console.log("DEBUG: Starting server...");
-  const PORT = Number(process.env.PORT) || 5000;
-  console.log(`DEBUG: NODE_ENV=${process.env.NODE_ENV || "production"}`);
-  console.log(`DEBUG: DATABASE_URL=${process.env.DATABASE_URL ? "set" : "not set"}`);
-  console.log(`DEBUG: OPENAI_API_KEY=${process.env.OPENAI_API_KEY ? "set" : "not set"}`);
-
-  try {
-    await registerRoutes(app);
-    console.log("✅ Routes registered");
-
-    const distPath = path.resolve(__dirname, "..", "dist", "public");
-    if (process.env.NODE_ENV === "production") {
-      const exists = await fs.access(distPath).then(() => true).catch(() => false);
-      if (exists) {
-        app.use(express.static(distPath));
-        app.get("*", (req, res, next) => {
-          if (req.originalUrl.match(/^(\/api\/|\/health|\/@|\/src\/|\.(js|css|tsx|ts|png|jpg|svg|html)$)/)) {
-            return next();
-          }
-          res.sendFile(path.resolve(distPath, "index.html"), (err) => {
-            if (err) {
-              console.error(`❌ Failed to serve index.html: ${err}`);
-              next();
-            }
-          });
-        });
-        console.log(`📁 Serving static files from: ${distPath}`);
-      } else {
-        console.warn(`⚠️ dist/public not found`);
-      }
+// CORS middleware for development
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
     }
+  });
+}
 
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`✅ Server running on port ${PORT}`);
+async function startServer() {
+  try {
+    console.log("🚀 [STARTUP] App starting - NODE_ENV:", process.env.NODE_ENV, "Has DB:", !!process.env.DATABASE_URL);
+    
+    // Initialize database
+    console.log("🔧 [STARTUP] Initializing database...");
+    await initializeDatabase();
+    console.log("✅ [STARTUP] Database initialized successfully");
+    
+    // Register API routes
+    console.log("🔧 [STARTUP] Initializing server...");
+    registerRoutes(app);
+    console.log("✅ [STARTUP] Routes registered successfully");
+    
+    // Serve static files in production
+    if (process.env.NODE_ENV === 'production') {
+      const staticPath = path.join(process.cwd(), 'dist', 'public');
+      app.use(express.static(staticPath));
+      
+      // Serve index.html for all non-API routes (SPA support)
+      app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+          res.sendFile(path.join(staticPath, 'index.html'));
+        }
+      });
+      console.log("✅ [STARTUP] Static file serving configured for production");
+    }
+    
+    // Health check endpoint
+    app.get('/health', (req, res) => {
+      res.json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'unknown'
+      });
     });
+    
+    // Start the server
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Frontend available at http://localhost:${port}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+    
   } catch (error) {
-    console.error(`❌ Server failed: ${error}`);
+    console.error("❌ [STARTUP] Failed to start server:", error);
     process.exit(1);
   }
 }
 
-initializeServer();
+startServer();
