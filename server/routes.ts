@@ -14,10 +14,9 @@ import {
 } from "../shared/schema.js";
 import { eq, desc, isNotNull } from "drizzle-orm";
 import { generateChatResponse, analyzeFileContent, generateImage } from "./services/openai.js";
-import { processFile } from "./services/fileProcessor.js";
 import { v4 as uuidv4 } from "uuid";
-
-const router = express.Router();
+import fs from "fs";
+import path from "path";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -27,8 +26,47 @@ const upload = multer({
   },
 });
 
+// Simple file processing function (inline instead of importing)
+async function processUploadedFile(filePath: string, originalName: string, mimeType: string) {
+  try {
+    console.log(`📄 [PRODUCTION] Processing file: ${originalName}`);
+    
+    // Read file content
+    const fileBuffer = fs.readFileSync(filePath);
+    let extractedText = "";
+    
+    // Basic text extraction based on file type
+    if (mimeType.includes('text/') || originalName.endsWith('.txt')) {
+      extractedText = fileBuffer.toString('utf-8');
+    } else if (mimeType.includes('json')) {
+      extractedText = fileBuffer.toString('utf-8');
+    } else {
+      // For other file types, store filename and basic info
+      extractedText = `File: ${originalName}\nType: ${mimeType}\nUploaded for SOYOSOYO SACCO processing.`;
+    }
+
+    console.log(`✅ [PRODUCTION] Extracted ${extractedText.length} characters from ${originalName}`);
+    
+    // Analyze content
+    const analysis = await analyzeFileContent(extractedText, originalName, mimeType);
+    
+    return {
+      text: extractedText,
+      analysis: analysis
+    };
+  } catch (error) {
+    console.error(`❌ [PRODUCTION] Error processing file ${originalName}:`, error);
+    return {
+      text: `File: ${originalName}\nProcessing error: ${error.message}`,
+      analysis: `Failed to process ${originalName}: ${error.message}`
+    };
+  }
+}
+
+const router = express.Router();
+
 // -----------------------------
-// DEBUG ENDPOINT FOR PRODUCTION TROUBLESHOOTING
+// DEBUG ENDPOINTS FOR PRODUCTION TROUBLESHOOTING
 // -----------------------------
 router.get("/debug/files", async (req, res) => {
   try {
@@ -279,8 +317,8 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     const file = req.file;
     console.log(`📄 [PRODUCTION] Processing file: ${file.originalname} (${file.size} bytes)`);
 
-    // Process the file
-    const result = await processFile(file.path, file.originalname, file.mimetype);
+    // Process the file using our inline function
+    const result = await processUploadedFile(file.path, file.originalname, file.mimetype);
 
     // Save to database
     const uploadedFile = await db.insert(uploadedFiles).values({
@@ -390,4 +428,11 @@ router.post("/generate-image", async (req, res) => {
   }
 });
 
+// Export the routes function that index.ts expects
+export function registerRoutes(app: express.Application) {
+  app.use("/api", router);
+  console.log("✅ [PRODUCTION] API routes registered successfully");
+}
+
+// Also export default router for flexibility
 export default router;
