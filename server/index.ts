@@ -1,7 +1,6 @@
 // server/index.ts
 import express from "express";
 import { registerRoutes } from "./routes.js";
-import { initializeDatabase } from "./db.js";
 import path from "path";
 
 const app = express();
@@ -29,12 +28,7 @@ async function startServer() {
   try {
     console.log("🚀 [STARTUP] App starting - NODE_ENV:", process.env.NODE_ENV, "Has DB:", !!process.env.DATABASE_URL);
     
-    // Initialize database
-    console.log("🔧 [STARTUP] Initializing database...");
-    await initializeDatabase();
-    console.log("✅ [STARTUP] Database initialized successfully");
-    
-    // Register API routes
+    // Register API routes (database will initialize on first use)
     console.log("🔧 [STARTUP] Initializing server...");
     registerRoutes(app);
     console.log("✅ [STARTUP] Routes registered successfully");
@@ -58,15 +52,19 @@ async function startServer() {
       res.json({ 
         status: 'healthy', 
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'unknown'
+        environment: process.env.NODE_ENV || 'unknown',
+        hasDatabase: !!process.env.DATABASE_URL,
+        hasOpenAI: !!process.env.OPENAI_API_KEY
       });
     });
     
     // Start the server
     app.listen(port, '0.0.0.0', () => {
-      console.log(`Server running on port ${port}`);
-      console.log(`Frontend available at http://localhost:${port}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🚀 [STARTUP] Server running on port ${port}`);
+      console.log(`🌐 [STARTUP] Frontend available at http://localhost:${port}`);
+      console.log(`🔧 [STARTUP] Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`💾 [STARTUP] Database: ${process.env.DATABASE_URL ? 'Connected' : 'Missing'}`);
+      console.log(`🤖 [STARTUP] OpenAI: ${process.env.OPENAI_API_KEY ? 'Ready' : 'Missing'}`);
     });
     
   } catch (error) {
