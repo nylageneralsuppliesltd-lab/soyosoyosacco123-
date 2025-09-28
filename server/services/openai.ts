@@ -43,7 +43,7 @@ function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTo
 }
 
 // -----------------------------
-// Fetch extracted texts from DB with connection testing
+// Fetch extracted texts from DB with TOKEN MANAGEMENT
 // -----------------------------
 export async function getAllExtractedTexts(): Promise<string> {
   try {
@@ -76,11 +76,33 @@ export async function getAllExtractedTexts(): Promise<string> {
       return "No documents with extracted text found.";
     }
 
-    const allTexts = validRows
-      .map((r, i) => `=== ${r.filename || `Document ${i + 1}`} ===\n${r.text}`)
-      .join("\n\n");
+    // TOKEN MANAGEMENT: Limit total text to prevent OpenAI rate limit
+    const MAX_TOTAL_CHARS = 60000; // ~15K tokens, leaves room for conversation + response
+    let totalChars = 0;
+    const processedTexts: string[] = [];
 
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
+      
+      if (totalChars >= MAX_TOTAL_CHARS) {
+        console.log(`⚠️ Reached text limit, truncating remaining ${validRows.length - i} files`);
+        break;
+      }
+
+      let text = row.text || "";
+      const remainingChars = MAX_TOTAL_CHARS - totalChars;
+      
+      if (text.length > remainingChars) {
+        text = text.substring(0, remainingChars) + `\n[Document truncated for token management]`;
+      }
+
+      processedTexts.push(`=== ${row.filename || `Document ${i + 1}`} ===\n${text}`);
+      totalChars += text.length;
+    }
+
+    const allTexts = processedTexts.join("\n\n");
     console.log(`📝 Total extracted text: ${allTexts.length} chars`);
+
     return allTexts;
   } catch (err) {
     console.error("❌ Database query failed:", err);
@@ -171,8 +193,8 @@ ${extractedTexts}`;
           }
         }
 
-        // Limit message history to prevent token overflow (keep system + last 8 exchanges for simple, 6 for complex)
-        const maxMessages = isSimple ? 17 : 13; // system + 16/12 messages (8/6 exchanges)
+        // Limit message history to prevent token overflow (keep system + last 6 exchanges for simple, 4 for complex)
+        const maxMessages = isSimple ? 13 : 9; // system + 12/8 messages (6/4 exchanges)
         if (messagesToSend.length > maxMessages) {
           const systemMessage = messagesToSend[0];
           const recentMessages = messagesToSend.slice(-(maxMessages - 1));
