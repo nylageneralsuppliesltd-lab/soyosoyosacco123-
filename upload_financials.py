@@ -289,6 +289,21 @@ def main():
         conn = psycopg2.connect(DATABASE_URL, sslmode="require")
         cur = conn.cursor()
         
+        # First, handle monthly file replacements (only for dynamic files)
+        print("🔄 Checking for monthly file updates...")
+        
+        # Delete old financials files (to be replaced with new ones)
+        financials_patterns = ['%FINANCIAL%', '%financial%', '%FINANCE%', '%finance%', '%budget%', '%BUDGET%']
+        for pattern in financials_patterns:
+            cur.execute("DELETE FROM uploaded_files WHERE (filename LIKE %s OR original_name LIKE %s)", (pattern, pattern))
+        
+        # Delete old member files (to be replaced with new ones) 
+        member_patterns = ['%member%', '%MEMBER%', '%dividend%', '%DIVIDEND%', '%qualification%', '%QUALIFICATION%']
+        for pattern in member_patterns:
+            cur.execute("DELETE FROM uploaded_files WHERE (filename LIKE %s OR original_name LIKE %s)", (pattern, pattern))
+            
+        print("✅ Old monthly files cleaned up")
+        
         # Process each file
         successful_uploads = 0
         
@@ -297,11 +312,15 @@ def main():
             
             if file_data:
                 try:
-                    # Delete existing record with same filename to avoid duplicates
-                    cur.execute(
-                        "DELETE FROM uploaded_files WHERE filename = %s", 
-                        (file_data["filename"],)
-                    )
+                    # For non-monthly files, still check for exact filename duplicates
+                    is_monthly_file = any(keyword in file_data["filename"].lower() 
+                                        for keyword in ['financial', 'finance', 'budget', 'member', 'dividend', 'qualification'])
+                    
+                    if not is_monthly_file:
+                        cur.execute(
+                            "DELETE FROM uploaded_files WHERE filename = %s", 
+                            (file_data["filename"],)
+                        )
                     
                     # Insert new record
                     cur.execute("""
