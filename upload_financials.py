@@ -24,9 +24,7 @@ SCAN_DIRECTORIES = [
     "data/",
     "documents/",
     "uploads/",
-    "assets/",
-    "attached_assets/",
-    "files/"
+      "files/"
 ]
 
 # Supported file types
@@ -83,21 +81,32 @@ def extract_pdf_text(file_path):
             # Simple text extraction for basic PDFs
             text = content.decode('utf-8', errors='ignore')
             
+            # Remove null characters and other problematic characters for PostgreSQL
+            text = text.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+            text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+            
             # Clean up the text
             lines = text.split('\n')
             clean_lines = []
             for line in lines:
                 line = line.strip()
                 if line and len(line) > 3:  # Skip very short lines
-                    clean_lines.append(line)
+                    # Additional cleaning for database safety
+                    line = line.encode('utf-8', errors='ignore').decode('utf-8')
+                    if line:  # Only add if still has content after cleaning
+                        clean_lines.append(line)
             
             if clean_lines:
-                return '\n'.join(clean_lines)
+                extracted_text = '\n'.join(clean_lines)
+                # Limit text length to prevent database issues
+                if len(extracted_text) > 50000:
+                    extracted_text = extracted_text[:50000] + "\n\n[Content truncated for database storage]"
+                return extracted_text
             else:
                 return f"PDF document: {os.path.basename(file_path)} (binary content - text extraction not available on this platform)"
                 
-    except Exception:
-        return f"PDF document: {os.path.basename(file_path)} (text extraction failed - file processed as binary)"
+    except Exception as e:
+        return f"PDF document: {os.path.basename(file_path)} (text extraction failed: {str(e)})"
 
 def excel_to_readable_text(df_dict, file_type, filename):
     """Convert Excel sheets to readable text format for AI chatbot"""
