@@ -17,18 +17,12 @@ echo "📄 Installing PDF processing libraries..."
 pip install PyPDF2 pdfplumber
 
 echo "📦 Installing Node.js dependencies..."
-# Fix package lock issues by using npm install instead of npm ci
+# Use npm install instead of npm ci to fix package lock issues
 npm install --production=false
 
-# Alternative: If npm install fails, try cleaning and reinstalling
-# echo "🧹 Cleaning npm cache and node_modules..."
-# rm -rf node_modules package-lock.json
-# npm cache clean --force
-# npm install --production=false
-
-# Build the application
-echo "🔨 Building the application..."
-npm run build
+# BUILD FRONTEND DIRECTLY (NOT via npm run build - that causes the loop!)
+echo "🔨 Building frontend..."
+npx vite build
 
 # Run database migrations/push
 echo "🗄️ Setting up database schema..."
@@ -58,7 +52,7 @@ fi
 if [ -f "package.json" ]; then
     echo "✅ Package.json found"
 else
-    echo "❌ Package.json missing"
+    echo "❌ Package.json missing"  
     exit 1
 fi
 
