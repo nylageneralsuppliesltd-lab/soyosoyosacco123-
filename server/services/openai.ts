@@ -43,7 +43,7 @@ function analyzeQuestionComplexity(question: string): { isSimple: boolean; maxTo
 }
 
 // -----------------------------
-// Fetch extracted texts from DB with TOKEN MANAGEMENT
+// Fetch extracted texts from DB with SMART PRIORITIZATION
 // -----------------------------
 export async function getAllExtractedTexts(): Promise<string> {
   try {
@@ -76,8 +76,67 @@ export async function getAllExtractedTexts(): Promise<string> {
       return "No documents with extracted text found.";
     }
 
-    // TOKEN MANAGEMENT: Limit total text to prevent OpenAI rate limit
-    const MAX_TOTAL_CHARS = 60000; // ~15K tokens, leaves room for conversation + response
+    // SMART PRIORITIZATION: Put important documents first
+    validRows.sort((a, b) => {
+      const aFilename = (a.filename || '').toLowerCase();
+      const bFilename = (b.filename || '').toLowerCase();
+      
+      // Priority 1: Bylaws and policies
+      const aPriority = aFilename.includes('bylaw') || aFilename.includes('policy') ? 1 :
+                       aFilename.includes('loan') ? 2 :
+                       aFilename.includes('financial') ? 3 :
+                       aFilename.includes('member') ? 4 : 5;
+      
+      const bPriority = bFilename.includes('bylaw') || bFilename.includes('policy') ? 1 :
+                       bFilename.includes('loan') ? 2 :
+                       bFilename.includes('financial') ? 3 :
+                       bFilename.includes('member') ? 4 : 5;
+      
+      return aPriority - bPriority;
+    });
+
+    // TOKEN MANAGEMENT: Prioritize important docs within limits
+    const MAX_TOTAL_CHARS = 80000; // Increased for bylaws (~20K tokens)
+    let totalChars = 0;
+    const processedTexts: string[] = [];
+
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
+      
+      if (totalChars >= MAX_TOTAL_CHARS) {
+        console.log(`⚠️ Reached text limit, prioritized ${i} most important files`);
+        break;
+      }
+
+      let text = row.text || "";
+      const remainingChars = MAX_TOTAL_CHARS - totalChars;
+      
+      // For bylaws/policies, allow more space
+      const isImportant = (row.filename || '').toLowerCase().includes('bylaw') || 
+                         (row.filename || '').toLowerCase().includes('policy');
+      
+      if (text.length > remainingChars) {
+        if (isImportant && remainingChars > 5000) {
+          // Keep more of important documents
+          text = text.substring(0, remainingChars) + `\n[Document continues - truncated for token management]`;
+        } else {
+          text = text.substring(0, Math.min(remainingChars, 10000)) + `\n[Document truncated for token management]`;
+        }
+      }
+
+      processedTexts.push(`=== ${row.filename || `Document ${i + 1}`} ===\n${text}`);
+      totalChars += text.length;
+    }
+
+    const allTexts = processedTexts.join("\n\n");
+    console.log(`📝 Total extracted text: ${allTexts.length} chars (${processedTexts.length} documents)`);
+
+    return allTexts;
+  } catch (err) {
+    console.error("❌ Database query failed:", err);
+    return "Unable to retrieve SOYOSOYO SACCO documents.";
+  }
+}
     let totalChars = 0;
     const processedTexts: string[] = [];
 
