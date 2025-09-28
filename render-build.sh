@@ -17,16 +17,19 @@ echo "📄 Installing PDF processing libraries..."
 pip install PyPDF2 pdfplumber
 
 echo "📦 Installing Node.js dependencies..."
-# Use npm install instead of npm ci to fix package lock issues
 npm install --production=false
 
-# BUILD FRONTEND DIRECTLY (NOT via npm run build - that causes the loop!)
+# Run database migrations/push BEFORE building
+echo "🗄️ Setting up database schema..."
+npm run db:push --force || echo "⚠️ Database push completed with warnings"
+
+# BUILD FRONTEND
 echo "🔨 Building frontend..."
 npx vite build
 
-# Run database migrations/push
-echo "🗄️ Setting up database schema..."
-npm run db:push --force || echo "⚠️ Database push completed with warnings"
+# BUILD BACKEND (This was missing!)
+echo "🔧 Building backend..."
+npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
 # Set correct permissions for uploaded files directory
 echo "📁 Setting up file directories..."
@@ -42,10 +45,17 @@ echo "🌐 SOYOSOYO SACCO chatbot ready for deployment"
 
 # Verify critical files exist
 echo "🔍 Build verification..."
-if [ -f "server/index.ts" ]; then
-    echo "✅ Server file found"
+if [ -f "dist/index.js" ]; then
+    echo "✅ Compiled server file found"
 else
-    echo "❌ Server file missing"
+    echo "❌ Server compilation failed"
+    exit 1
+fi
+
+if [ -f "server/index.ts" ]; then
+    echo "✅ Source server file found"
+else
+    echo "❌ Source server file missing"
     exit 1
 fi
 
