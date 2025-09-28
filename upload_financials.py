@@ -25,6 +25,7 @@ SCAN_DIRECTORIES = [
     "documents/",
     "uploads/",
     "assets/",
+    "attached_assets/",
     "files/"
 ]
 
