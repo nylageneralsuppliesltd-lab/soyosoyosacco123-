@@ -2,6 +2,10 @@ import express from "express";
 import { registerRoutes } from "./routes.js";
 import path from "path";
 
+// ⚡ Correct CommonJS import for tiktoken
+import tiktoken from "tiktoken";
+const { getEncoding } = tiktoken;
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -29,8 +33,8 @@ async function startServer() {
     console.log("💾 [STARTUP] Database:", process.env.DATABASE_URL ? 'Connected' : 'Missing');
     console.log("🤖 [STARTUP] OpenAI:", process.env.OPENAI_API_KEY ? 'Ready' : 'Missing');
     
-    // Register API routes
-    registerRoutes(app);
+    // Register API routes and pass getEncoding
+    registerRoutes(app, getEncoding);
     console.log("✅ [STARTUP] API routes registered successfully");
     
     // Serve static files in production
