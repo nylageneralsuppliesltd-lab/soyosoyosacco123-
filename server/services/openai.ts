@@ -98,7 +98,7 @@ export async function getAllExtractedTexts(): Promise<string> {
     });
 
     // ✅ Limit total chars to avoid token overflow
-    const MAX_TOTAL_CHARS = 90000;
+    const MAX_TOTAL_CHARS = 125000;
     let totalChars = 0;
     const processedTexts: string[] = [];
 
