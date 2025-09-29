@@ -1,12 +1,11 @@
 // src/services/saccoAssistant.ts
 import OpenAI from "openai";
-// ✅ Fixed import for tiktoken (CommonJS in ESM)
-import tiktokenPkg from "tiktoken";
-const { getEncoding } = tiktokenPkg;
-
 import { db } from "../db.js";
 import { uploadedFiles } from "../../shared/schema.js";
 import { isNotNull, desc } from "drizzle-orm";
+// ✅ Fixed import for tiktoken (CommonJS in ESM)
+import tiktokenPkg from "tiktoken";
+const { getEncoding } = tiktokenPkg;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
@@ -20,7 +19,7 @@ function chunkText(text: string, maxChunkSize = 8000): string[] {
     const end = Math.min(start + maxChunkSize, text.length);
     let splitEnd = end;
 
-    // try to split on sentence boundary or newline
+    // Try to split on sentence boundary or newline
     const lastPeriod = text.lastIndexOf(".", end);
     const lastNewline = text.lastIndexOf("\n", end);
     if (lastPeriod > start + 1000) {
@@ -35,8 +34,8 @@ function chunkText(text: string, maxChunkSize = 8000): string[] {
   return chunks;
 }
 
-// ✅ Fetch all extracted texts from DB (with query relevance)
-export async function getAllExtractedTexts(query?: string): Promise<string> {
+// ✅ Fetch all extracted texts from DB (load everything, no priority/filter)
+export async function getAllExtractedTexts(): Promise<string> {
   try {
     console.log("🔍 [DEBUG] Fetching documents...");
 
@@ -49,7 +48,7 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
       })
       .from(uploadedFiles)
       .where(isNotNull(uploadedFiles.extractedText))
-      .orderBy(desc(uploadedFiles.uploadedAt));
+      .orderBy(desc(uploadedFiles.uploadedAt));  // Latest first, no priority sort
 
     console.log(`📊 [DEBUG] Found ${rows.length} documents`);
 
@@ -75,50 +74,24 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
       }
     }
 
-    let prioritizedRows = Array.from(uniqueDocs.values());
+    const allRows = Array.from(uniqueDocs.values());  // No filtering/priority—just all
     console.log(
-      `🎯 [DEBUG] After deduplication: ${prioritizedRows.length} unique documents`
+      `🎯 [DEBUG] After deduplication: ${allRows.length} unique documents (all loaded)`
     );
 
-    // ✅ Prioritize documents (Bylaws > Policy > Loan > Financial > Member > Others)
-    prioritizedRows = prioritizedRows.sort((a, b) => {
-      const priority = (name: string) => {
-        const n = (name || "").toLowerCase();
-        if (n.includes("bylaw") || n.includes("law")) return 1;
-        if (n.includes("policy")) return 2;
-        if (n.includes("loan")) return 3;
-        if (n.includes("financial")) return 4;
-        if (n.includes("member")) return 5;
-        return 10;
-      };
-      return priority(a.filename) - priority(b.filename);
-    });
-
-    console.log("🏛️ [DEBUG] First 3 prioritized documents:");
-    prioritizedRows.slice(0, 3).forEach((row, i) => {
+    console.log("📂 [DEBUG] All documents loaded:");
+    allRows.forEach((row, i) => {
       console.log(
         `  ${i + 1}. ${row.filename} (${(row.text || "").length} chars)`
       );
     });
 
-    // ✅ Query-specific filtering for alignment
-    let filteredRows = prioritizedRows;
-    if (query) {
-      const queryLower = query.toLowerCase();
-      filteredRows = prioritizedRows.filter(row => {
-        const nameLower = (row.filename || '').toLowerCase();
-        const textLower = (row.text || '').toLowerCase();
-        return nameLower.includes(queryLower) || textLower.includes(queryLower);
-      });
-      console.log(`🔍 [DEBUG] Filtered to ${filteredRows.length} relevant docs for "${query}"`);
-    }
-
     // ✅ Limit total chars to avoid token overflow
-    const MAX_TOTAL_CHARS = 111000;
+    const MAX_TOTAL_CHARS = 125000;  // Fits your 111k fully
     let totalChars = 0;
     const processedTexts: string[] = [];
 
-    for (const row of filteredRows) {
+    for (const row of allRows) {  // Load in order, no priority
       if (totalChars >= MAX_TOTAL_CHARS) {
         console.log(`⚠️ [DEBUG] Reached ${MAX_TOTAL_CHARS} char limit`);
         break;
@@ -127,51 +100,32 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
       let text = (row.text || "").trim();
       if (!text) continue;
 
-      // ✅ Add file-specific summary for better display
-      let fileSummary = "";
-      if (row.filename.toLowerCase().includes('financial')) {
-        fileSummary = '**Financial Summary: Key metrics from balance sheet and income statement.**\n';
-      } else if (row.filename.toLowerCase().includes('by laws') || row.filename.toLowerCase().includes('bylaw')) {
-        fileSummary = '**By-Laws Key Points: Governance, membership, and election rules.**\n';
-      } else if (row.filename.toLowerCase().includes('loan') || row.filename.toLowerCase().includes('policy')) {
-        fileSummary = '**Loan Policy Highlights: Eligibility, rates, and procedures.**\n';
-      } else if (row.filename.toLowerCase().includes('member') || row.filename.toLowerCase().includes('dividend')) {
-        fileSummary = '**Member Data Summary: Qualifications and dividends.**\n';
-      }
+      // ✅ Simple header for each file (no bold summaries—keep as-is)
+      const fileHeader = `=== ${row.filename} ===\n`;
 
       // ✅ Split into chunks
-      const chunks = chunkText(fileSummary + text, 8000);
+      const chunks = chunkText(text, 8000);
 
       for (const chunk of chunks) {
         if (totalChars >= MAX_TOTAL_CHARS) break;
 
         const remainingChars = MAX_TOTAL_CHARS - totalChars;
-        let chunkTextFinal = chunk;
+        let chunkTextFinal = fileHeader + chunk;  // Add header to first chunk only? Wait, per file
 
-        if (chunk.length > remainingChars) {
+        if (chunkTextFinal.length > remainingChars) {
           chunkTextFinal =
-            chunk.substring(0, remainingChars) +
+            chunkTextFinal.substring(0, remainingChars) +
             "\n[Document truncated due to space limit]";
         }
 
-        processedTexts.push(`=== ${row.filename} ===\n${chunkTextFinal}`);
+        processedTexts.push(chunkTextFinal);
         totalChars += chunkTextFinal.length;
       }
     }
 
     const finalContext = processedTexts.join("\n\n");
-    
-    // ✅ Exact token count with tiktoken (optional, for debugging)
-    try {
-      const encoder = getEncoding('cl100k_base');
-      const tokens = encoder.encode(finalContext).length;
-      console.log(`📊 [DEBUG] Exact tokens: ${tokens} (est. chars: ${finalContext.length})`);
-    } catch (e) {
-      console.log(`📊 [DEBUG] Token count skipped: ${e.message}`);
-    }
-
     console.log(
-      `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} chunks`
+      `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} chunks (all files included)`
     );
 
     return finalContext.length > 0
@@ -184,7 +138,7 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
   }
 }
 
-// ✅ Generate AI response
+// ✅ Generate AI response (no query pass—loads all)
 export async function generateChatResponse(
   userMessage: string,
   conversationId?: string
@@ -192,7 +146,7 @@ export async function generateChatResponse(
   try {
     console.log(`🤖 [DEBUG] Processing message: "${userMessage.slice(0, 100)}..."`);
 
-    const extractedTexts = await getAllExtractedTexts(userMessage);  // Pass query for filtering
+    const extractedTexts = await getAllExtractedTexts();  // Loads everything, no query filter
     console.log(`📚 [DEBUG] Context length: ${extractedTexts.length} chars`);
 
     if (
@@ -207,11 +161,10 @@ export async function generateChatResponse(
 CRITICAL INSTRUCTIONS:
 - Answer questions ONLY using the SOYOSOYO SACCO documents provided below
 - If information is not in the provided documents, say: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
-- For questions about bylaws, policies, loans, or membership, refer to the specific document sections
-- Always include financial and member details when relevant (amounts, dates, qualifications)
 - Provide specific details from the documents (amounts, procedures, names, requirements)
 - Use **bold** for important information like deadlines, amounts, requirements
 - Be helpful and professional
+- Always reference financial and member documents for numbers and qualifications
 
 SOYOSOYO SACCO DOCUMENTS:
 ${extractedTexts}`;
