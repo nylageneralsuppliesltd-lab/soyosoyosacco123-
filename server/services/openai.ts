@@ -1,5 +1,6 @@
 // src/services/saccoAssistant.ts
 import OpenAI from "openai";
+import { getEncoding } from "tiktoken";  // npm i tiktoken for exact token counting
 import { db } from "../db.js";
 import { uploadedFiles } from "../../shared/schema.js";
 import { isNotNull, desc } from "drizzle-orm";
@@ -31,8 +32,8 @@ function chunkText(text: string, maxChunkSize = 8000): string[] {
   return chunks;
 }
 
-// ✅ Fetch all extracted texts from DB
-export async function getAllExtractedTexts(): Promise<string> {
+// ✅ Fetch all extracted texts from DB (with query relevance)
+export async function getAllExtractedTexts(query?: string): Promise<string> {
   try {
     console.log("🔍 [DEBUG] Fetching documents...");
 
@@ -71,16 +72,16 @@ export async function getAllExtractedTexts(): Promise<string> {
       }
     }
 
-    const deduplicatedRows = Array.from(uniqueDocs.values());
+    let prioritizedRows = Array.from(uniqueDocs.values());
     console.log(
-      `🎯 [DEBUG] After deduplication: ${deduplicatedRows.length} unique documents`
+      `🎯 [DEBUG] After deduplication: ${prioritizedRows.length} unique documents`
     );
 
     // ✅ Prioritize documents (Bylaws > Policy > Loan > Financial > Member > Others)
-    const prioritizedRows = deduplicatedRows.sort((a, b) => {
+    prioritizedRows = prioritizedRows.sort((a, b) => {
       const priority = (name: string) => {
         const n = (name || "").toLowerCase();
-        if (n.includes("bylaw")) return 1;
+        if (n.includes("bylaw") || n.includes("law")) return 1;  // Fixed: Added "law" for "BY LAWS"
         if (n.includes("policy")) return 2;
         if (n.includes("loan")) return 3;
         if (n.includes("financial")) return 4;
@@ -97,12 +98,24 @@ export async function getAllExtractedTexts(): Promise<string> {
       );
     });
 
+    // ✅ Query-specific filtering for alignment
+    let filteredRows = prioritizedRows;
+    if (query) {
+      const queryLower = query.toLowerCase();
+      filteredRows = prioritizedRows.filter(row => {
+        const nameLower = (row.filename || '').toLowerCase();
+        const textLower = (row.text || '').toLowerCase();
+        return nameLower.includes(queryLower) || textLower.includes(queryLower);
+      });
+      console.log(`🔍 [DEBUG] Filtered to ${filteredRows.length} relevant docs for "${query}"`);
+    }
+
     // ✅ Limit total chars to avoid token overflow
     const MAX_TOTAL_CHARS = 111000;
     let totalChars = 0;
     const processedTexts: string[] = [];
 
-    for (const row of prioritizedRows) {
+    for (const row of filteredRows) {
       if (totalChars >= MAX_TOTAL_CHARS) {
         console.log(`⚠️ [DEBUG] Reached ${MAX_TOTAL_CHARS} char limit`);
         break;
@@ -111,8 +124,20 @@ export async function getAllExtractedTexts(): Promise<string> {
       let text = (row.text || "").trim();
       if (!text) continue;
 
+      // ✅ Add file-specific summary for better display (bold key sections)
+      let fileSummary = "";
+      if (row.filename.toLowerCase().includes('financial')) {
+        fileSummary = '**Financial Summary: Key metrics from balance sheet and income statement.**\n';
+      } else if (row.filename.toLowerCase().includes('by laws') || row.filename.toLowerCase().includes('bylaw')) {
+        fileSummary = '**By-Laws Key Points: Governance, membership, and election rules.**\n';
+      } else if (row.filename.toLowerCase().includes('loan') || row.filename.toLowerCase().includes('policy')) {
+        fileSummary = '**Loan Policy Highlights: Eligibility, rates, and procedures.**\n';
+      } else if (row.filename.toLowerCase().includes('member') || row.filename.toLowerCase().includes('dividend')) {
+        fileSummary = '**Member Data Summary: Qualifications and dividends.**\n';
+      }
+
       // ✅ Split into chunks
-      const chunks = chunkText(text, 8000);
+      const chunks = chunkText(fileSummary + text, 8000);
 
       for (const chunk of chunks) {
         if (totalChars >= MAX_TOTAL_CHARS) break;
@@ -132,6 +157,16 @@ export async function getAllExtractedTexts(): Promise<string> {
     }
 
     const finalContext = processedTexts.join("\n\n");
+    
+    // ✅ Exact token count with tiktoken (optional, for debugging)
+    try {
+      const encoder = getEncoding('cl100k_base');
+      const tokens = encoder.encode(finalContext).length;
+      console.log(`📊 [DEBUG] Exact tokens: ${tokens} (est. chars: ${finalContext.length})`);
+    } catch (e) {
+      console.log(`📊 [DEBUG] Token count skipped: ${e.message}`);
+    }
+
     console.log(
       `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} chunks`
     );
@@ -154,7 +189,7 @@ export async function generateChatResponse(
   try {
     console.log(`🤖 [DEBUG] Processing message: "${userMessage.slice(0, 100)}..."`);
 
-    const extractedTexts = await getAllExtractedTexts();
+    const extractedTexts = await getAllExtractedTexts(userMessage);  // Pass query for filtering
     console.log(`📚 [DEBUG] Context length: ${extractedTexts.length} chars`);
 
     if (
@@ -170,6 +205,7 @@ CRITICAL INSTRUCTIONS:
 - Answer questions ONLY using the SOYOSOYO SACCO documents provided below
 - If information is not in the provided documents, say: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
 - For questions about bylaws, policies, loans, or membership, refer to the specific document sections
+- Always include financial and member details when relevant (amounts, dates, qualifications)
 - Provide specific details from the documents (amounts, procedures, names, requirements)
 - Use **bold** for important information like deadlines, amounts, requirements
 - Be helpful and professional
