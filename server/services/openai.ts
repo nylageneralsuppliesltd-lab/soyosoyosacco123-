@@ -1,6 +1,9 @@
 // src/services/saccoAssistant.ts
 import OpenAI from "openai";
-import { getEncoding } from "tiktoken";  // npm i tiktoken for exact token counting
+// ✅ Fixed import for tiktoken (CommonJS in ESM)
+import tiktokenPkg from "tiktoken";
+const { getEncoding } = tiktokenPkg;
+
 import { db } from "../db.js";
 import { uploadedFiles } from "../../shared/schema.js";
 import { isNotNull, desc } from "drizzle-orm";
@@ -81,7 +84,7 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
     prioritizedRows = prioritizedRows.sort((a, b) => {
       const priority = (name: string) => {
         const n = (name || "").toLowerCase();
-        if (n.includes("bylaw") || n.includes("law")) return 1;  // Fixed: Added "law" for "BY LAWS"
+        if (n.includes("bylaw") || n.includes("law")) return 1;
         if (n.includes("policy")) return 2;
         if (n.includes("loan")) return 3;
         if (n.includes("financial")) return 4;
@@ -124,7 +127,7 @@ export async function getAllExtractedTexts(query?: string): Promise<string> {
       let text = (row.text || "").trim();
       if (!text) continue;
 
-      // ✅ Add file-specific summary for better display (bold key sections)
+      // ✅ Add file-specific summary for better display
       let fileSummary = "";
       if (row.filename.toLowerCase().includes('financial')) {
         fileSummary = '**Financial Summary: Key metrics from balance sheet and income statement.**\n';
