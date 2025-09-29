@@ -254,31 +254,29 @@ def excel_to_readable_text(df_dict, file_type, filename):
         readable_text += "=" * 50 + "\n\n"
         
         if not df.empty:
+            # Header row as markdown table header
+            header = '| ' + ' | '.join(str(col) for col in df.columns) + ' |\n'
+            readable_text += header + '|' + '---|' * len(df.columns) + '\n'
+            
+            # Rows as table lines
             for index, row in df.iterrows():
-                row_text = ""
-                for col, value in row.items():
-                    if pd.notna(value):
-                        if isinstance(value, (int, float)) and abs(value) > 1000:
-                            row_text += f"{col}: {value:,.2f} | "
-                        else:
-                            row_text += f"{col}: {value} | "
-                
-                if row_text.strip():
-                    readable_text += row_text.rstrip(" | ") + "\n"
+                row_line = '| ' + ' | '.join(str(value) if pd.notna(value) else '' for value in row) + ' |\n'
+                readable_text += row_line
             
-            readable_text += "\n"
+            readable_text += '\n'
             
+            # Summary as before, but bold
             numeric_cols = df.select_dtypes(include=['number']).columns
             if len(numeric_cols) > 0:
-                readable_text += "SUMMARY STATISTICS:\n"
+                readable_text += "**SUMMARY STATISTICS:**\n"
                 for col in numeric_cols:
                     if df[col].notna().any():
                         total = df[col].sum()
                         avg = df[col].mean()
                         if abs(total) > 0.01:
-                            readable_text += f"Total {col}: {total:,.2f}\n"
+                            readable_text += f"**Total {col}: {total:,.2f}**\n"
                         if abs(avg) > 0.01:
-                            readable_text += f"Average {col}: {avg:,.2f}\n"
+                            readable_text += f"**Average {col}: {avg:,.2f}**\n"
                 readable_text += "\n"
         
         readable_text += "\n" + "=" * 50 + "\n\n"
@@ -470,34 +468,4 @@ def main():
         
         conn.commit()
         
-        print(f"\n🎉 SMART UPLOAD COMPLETE!")
-        print(f"   📊 Total files found: {len(supported_files)}")
-        print(f"   🆕 New/updated files processed: {new_files}")
-        print(f"   ⏭️ Already processed (skipped): {skipped_files}")
-        print(f"   ✅ Successfully uploaded: {successful_uploads}")
-        print(f"   💰 Token savings: MASSIVE! (No re-processing of existing files)")
-        
-        # Show breakdown by file type
-        if successful_uploads > 0:
-            print(f"\n📋 BREAKDOWN BY TYPE:")
-            type_counts = {}
-            for file_path in supported_files:
-                file_type = classify_file_type(file_path)
-                type_counts[file_type] = type_counts.get(file_type, 0) + 1
-            
-            for file_type, count in type_counts.items():
-                print(f"   {file_type.replace('_', ' ').title()}: {count} files")
-        
-    except psycopg2.Error as e:
-        print(f"❌ Database connection error: {e}")
-    except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-    finally:
-        if 'cur' in locals():
-            cur.close()
-        if 'conn' in locals():
-            conn.close()
-        print("🔒 Database connection closed")
-
-if __name__ == "__main__":
-    main()
+        print(f"\n
