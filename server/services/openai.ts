@@ -8,6 +8,29 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
 });
 
+// ✅ Simple text chunker (balanced splitting)
+function chunkText(text: string, maxChunkSize = 8000): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(start + maxChunkSize, text.length);
+    let splitEnd = end;
+
+    // try to split on sentence boundary or newline
+    const lastPeriod = text.lastIndexOf(".", end);
+    const lastNewline = text.lastIndexOf("\n", end);
+    if (lastPeriod > start + 1000) {
+      splitEnd = lastPeriod + 1;
+    } else if (lastNewline > start + 1000) {
+      splitEnd = lastNewline + 1;
+    }
+
+    chunks.push(text.slice(start, splitEnd).trim());
+    start = splitEnd;
+  }
+  return chunks;
+}
+
 // ✅ Fetch all extracted texts from DB
 export async function getAllExtractedTexts(): Promise<string> {
   try {
@@ -78,7 +101,6 @@ export async function getAllExtractedTexts(): Promise<string> {
     const MAX_TOTAL_CHARS = 90000;
     let totalChars = 0;
     const processedTexts: string[] = [];
-    let bylawsIncluded = false;
 
     for (const row of prioritizedRows) {
       if (totalChars >= MAX_TOTAL_CHARS) {
@@ -89,36 +111,30 @@ export async function getAllExtractedTexts(): Promise<string> {
       let text = (row.text || "").trim();
       if (!text) continue;
 
-      const isBylaws = (row.filename || "").toLowerCase().includes("bylaw");
-      const isPolicy = (row.filename || "").toLowerCase().includes("policy");
-      const remainingChars = MAX_TOTAL_CHARS - totalChars;
+      // ✅ Split into chunks
+      const chunks = chunkText(text, 8000);
 
-      if (isBylaws) {
-        if (text.length > remainingChars && remainingChars > 40000) {
-          text =
-            text.substring(0, remainingChars - 2000) +
-            "\n[BYLAWS content continues - full document processed]";
+      for (const chunk of chunks) {
+        if (totalChars >= MAX_TOTAL_CHARS) break;
+
+        const remainingChars = MAX_TOTAL_CHARS - totalChars;
+        let chunkTextFinal = chunk;
+
+        if (chunk.length > remainingChars) {
+          chunkTextFinal =
+            chunk.substring(0, remainingChars) +
+            "\n[Document truncated due to space limit]";
         }
-        bylawsIncluded = true;
-      } else if (isPolicy && text.length > remainingChars && remainingChars > 20000) {
-        text =
-          text.substring(0, remainingChars - 1000) +
-          "\n[Policy document continues]";
-      } else if (text.length > remainingChars) {
-        text =
-          text.substring(0, Math.min(remainingChars, 20000)) +
-          "\n[Document truncated for space]";
-      }
 
-      processedTexts.push(`=== ${row.filename} ===\n${text}`);
-      totalChars += text.length;
+        processedTexts.push(`=== ${row.filename} ===\n${chunkTextFinal}`);
+        totalChars += chunkTextFinal.length;
+      }
     }
 
     const finalContext = processedTexts.join("\n\n");
     console.log(
-      `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} documents`
+      `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} chunks`
     );
-    console.log(`🏛️ [DEBUG] BYLAWS INCLUDED: ${bylawsIncluded}`);
 
     return finalContext.length > 0
       ? finalContext
