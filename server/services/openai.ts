@@ -1,4 +1,3 @@
-// src/services/saccoAssistant.ts
 import OpenAI from "openai";
 import { db } from "../db.js";
 import { uploadedFiles } from "../../shared/schema.js";
@@ -11,34 +10,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "",
 });
 
-// ✅ Simple text chunker (balanced splitting)
-function chunkText(text: string, maxChunkSize = 8000): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < text.length) {
-    const end = Math.min(start + maxChunkSize, text.length);
-    let splitEnd = end;
-
-    // Try to split on sentence boundary or newline
-    const lastPeriod = text.lastIndexOf(".", end);
-    const lastNewline = text.lastIndexOf("\n", end);
-    if (lastPeriod > start + 1000) {
-      splitEnd = lastPeriod + 1;
-    } else if (lastNewline > start + 1000) {
-      splitEnd = lastNewline + 1;
-    }
-
-    chunks.push(text.slice(start, splitEnd).trim());
-    start = splitEnd;
-  }
-  return chunks;
-}
-
-// ✅ Fetch all extracted texts from DB (load everything, no priority/filter)
 export async function getAllExtractedTexts(): Promise<string> {
   try {
-    console.log("🔍 [DEBUG] Fetching documents...");
-
+    console.log("🔍 [PRODUCTION] Fetching documents...");
+    
     const rows = await db
       .select({
         text: uploadedFiles.extractedText,
@@ -48,106 +23,111 @@ export async function getAllExtractedTexts(): Promise<string> {
       })
       .from(uploadedFiles)
       .where(isNotNull(uploadedFiles.extractedText))
-      .orderBy(desc(uploadedFiles.uploadedAt));  // Latest first, no priority sort
+      .orderBy(desc(uploadedFiles.uploadedAt));
 
-    console.log(`📊 [DEBUG] Found ${rows.length} documents`);
+    console.log(`📊 [PRODUCTION] Found ${rows.length} documents`);
 
     if (rows.length === 0) {
       return "No documents found in SOYOSOYO SACCO database.";
     }
 
-    // ✅ Deduplicate (keep latest version of each file)
+    // Deduplicate
     const uniqueDocs = new Map<string, typeof rows[0]>();
     for (const row of rows) {
       const normalizedName = (row.filename || "")
         .toLowerCase()
         .replace(/[_\s-]+/g, "")
         .replace(/\.pdf$/, "")
-        .replace(/\.txt$/, "");
+        .replace(/\.txt$/, "")
+        .replace(/\.xlsx$/, "");
 
       if (
         !uniqueDocs.has(normalizedName) ||
-        new Date(row.uploadedAt) >
-          new Date(uniqueDocs.get(normalizedName)!.uploadedAt)
+        new Date(row.uploadedAt) > new Date(uniqueDocs.get(normalizedName)!.uploadedAt)
       ) {
         uniqueDocs.set(normalizedName, row);
       }
     }
 
-    const allRows = Array.from(uniqueDocs.values());  // No filtering/priority—just all
-    console.log(
-      `🎯 [DEBUG] After deduplication: ${allRows.length} unique documents (all loaded)`
-    );
+    const allRows = Array.from(uniqueDocs.values());
+    console.log(`🎯 [PRODUCTION] After deduplication: ${allRows.length} unique documents`);
 
-    console.log("📂 [DEBUG] All documents loaded:");
-    allRows.forEach((row, i) => {
-      console.log(
-        `  ${i + 1}. ${row.filename} (${(row.text || "").length} chars)`
-      );
+    // CRITICAL: Sort to prioritize financial documents FIRST
+    const prioritizedRows = allRows.sort((a, b) => {
+      const aName = (a.filename || "").toLowerCase();
+      const bName = (b.filename || "").toLowerCase();
+      
+      // Financial files get highest priority
+      const aPriority = aName.includes('financial') ? 1 :
+                       aName.includes('bylaw') ? 2 :
+                       aName.includes('loan') || aName.includes('policy') ? 3 :
+                       aName.includes('member') || aName.includes('dividend') ? 4 : 10;
+                       
+      const bPriority = bName.includes('financial') ? 1 :
+                       bName.includes('bylaw') ? 2 :
+                       bName.includes('loan') || bName.includes('policy') ? 3 :
+                       bName.includes('member') || bName.includes('dividend') ? 4 : 10;
+      
+      return aPriority - bPriority;
     });
 
-    // ✅ Limit total chars to avoid token overflow
-    const MAX_TOTAL_CHARS = 125000;  // Fits your 111k fully
+    console.log(`🏛️ [PRODUCTION] First 5 prioritized documents:`);
+    prioritizedRows.slice(0, 5).forEach((row, i) => {
+      console.log(`  ${i+1}. ${row.filename} (${(row.text || '').length} chars)`);
+    });
+
+    // Build context with generous budget for financial data
+    const MAX_TOTAL_CHARS = 120000;
     let totalChars = 0;
     const processedTexts: string[] = [];
 
-    for (const row of allRows) {  // Load in order, no priority
+    for (const row of prioritizedRows) {
       if (totalChars >= MAX_TOTAL_CHARS) {
-        console.log(`⚠️ [DEBUG] Reached ${MAX_TOTAL_CHARS} char limit`);
+        console.log(`⚠️ [PRODUCTION] Reached ${MAX_TOTAL_CHARS} char limit`);
         break;
       }
 
       let text = (row.text || "").trim();
       if (!text) continue;
 
-      // ✅ Simple header for each file (no bold summaries—keep as-is)
-      const fileHeader = `=== ${row.filename} ===\n`;
-
-      // ✅ Split into chunks
-      const chunks = chunkText(text, 8000);
-
-      for (const chunk of chunks) {
-        if (totalChars >= MAX_TOTAL_CHARS) break;
-
-        const remainingChars = MAX_TOTAL_CHARS - totalChars;
-        let chunkTextFinal = fileHeader + chunk;  // Add header to first chunk only? Wait, per file
-
-        if (chunkTextFinal.length > remainingChars) {
-          chunkTextFinal =
-            chunkTextFinal.substring(0, remainingChars) +
-            "\n[Document truncated due to space limit]";
-        }
-
-        processedTexts.push(chunkTextFinal);
-        totalChars += chunkTextFinal.length;
+      const isFinancial = (row.filename || '').toLowerCase().includes('financial');
+      const remainingChars = MAX_TOTAL_CHARS - totalChars;
+      
+      // Ensure financial files get full space
+      if (isFinancial && text.length > remainingChars && remainingChars > 10000) {
+        text = text.substring(0, remainingChars - 1000);
+        console.log(`💰 [PRODUCTION] FINANCIAL FILE INCLUDED: ${text.length} chars`);
+      } else if (text.length > remainingChars) {
+        text = text.substring(0, Math.min(remainingChars, 20000));
       }
+
+      processedTexts.push(`=== ${row.filename} ===\n${text}`);
+      totalChars += text.length;
+      
+      console.log(`📝 [PRODUCTION] Added ${row.filename}: ${text.length} chars (total: ${totalChars})`);
     }
 
     const finalContext = processedTexts.join("\n\n");
-    console.log(
-      `📋 [DEBUG] Final context: ${finalContext.length} chars from ${processedTexts.length} chunks (all files included)`
-    );
+    console.log(`📋 [PRODUCTION] Final context: ${finalContext.length} chars from ${processedTexts.length} documents`);
 
-    return finalContext.length > 0
-      ? finalContext
-      : "No valid document content found.";
+    return finalContext.length > 0 ? finalContext : "No valid document content found.";
+    
   } catch (error) {
-    console.error("❌ [DEBUG] Document retrieval error:", error);
+    console.error("❌ [PRODUCTION] Document retrieval error:", error);
     const err = error instanceof Error ? error.message : "Unknown error";
-    return `Unable to retrieve SOYOSOYO SACCO documents due to database error: ${err}`;
+    return `Unable to retrieve SOYOSOYO SACCO documents: ${err}`;
   }
 }
 
-// ✅ Generate AI response (no query pass—loads all)
 export async function generateChatResponse(
   userMessage: string,
   conversationId?: string
 ): Promise<string> {
   try {
-    console.log(`🤖 [DEBUG] Processing message: "${userMessage.slice(0, 100)}..."`);
+    console.log(`🤖 [PRODUCTION] Processing: "${userMessage.slice(0, 100)}..."`);
 
-    const extractedTexts = await getAllExtractedTexts();  // Loads everything, no query filter
-    console.log(`📚 [DEBUG] Context length: ${extractedTexts.length} chars`);
+    const extractedTexts = await getAllExtractedTexts();
+    console.log(`📚 [PRODUCTION] Context length: ${extractedTexts.length} chars`);
 
     if (
       extractedTexts.includes("Unable to retrieve") ||
@@ -156,15 +136,25 @@ export async function generateChatResponse(
       return "I'm sorry, but I'm unable to access the SOYOSOYO SACCO documents at the moment. Please try again later.";
     }
 
+    // ENHANCED system prompt with explicit financial instructions
     const systemMessage = `You are the SOYOSOYO SACCO Assistant for SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD.
 
 CRITICAL INSTRUCTIONS:
 - Answer questions ONLY using the SOYOSOYO SACCO documents provided below
+- For financial questions (profit, revenue, income, expenses, earnings):
+  * Look for INCOME STATEMENT, BALANCE SHEET, RETAINED EARNINGS data
+  * Search for terms: "TOTAL INCOME", "TOTAL EXPENSES", "RETAINED EARNINGS", "PROFIT"
+  * Calculate profit as: TOTAL INCOME - TOTAL EXPENSES = PROFIT (or RETAINED EARNINGS)
+  * Financial data may include "Unnamed:" column headers - focus on the VALUES not column names
+- For member dividends: Look for "dividend", "member", "share capital", "distribution" data
+- Provide specific numbers and amounts from the documents
+- Use **bold** for important amounts and figures
 - If information is not in the provided documents, say: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
-- Provide specific details from the documents (amounts, procedures, names, requirements)
-- Use **bold** for important information like deadlines, amounts, requirements
-- Be helpful and professional
-- Always reference financial and member documents for numbers and qualifications
+
+RESPONSE EXAMPLES:
+- For profit: "According to our financial statements as of [DATE], SOYOSOYO SACCO made a profit of **KSH [AMOUNT]**. Total income was [AMOUNT] and total expenses were [AMOUNT]."
+- For member info: "Based on our member records, [specific details from documents]..."
+- For unavailable info: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
 
 SOYOSOYO SACCO DOCUMENTS:
 ${extractedTexts}`;
@@ -173,28 +163,31 @@ ${extractedTexts}`;
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemMessage },
-        { role: "user", content: userMessage },
+        { role: "user", content: userMessage }
       ],
-      max_tokens: 800,
+      max_tokens: 1000,
       temperature: 0.1,
     });
 
-    return response.choices[0].message.content || "I couldn't generate a response.";
-  } catch (error) {
-    console.error("❌ [DEBUG] OpenAI error:", error);
-    const err = error instanceof Error ? error.message : "Unknown error";
+    const aiResponse = response.choices[0].message.content || "I couldn't generate a response.";
+    console.log(`✅ [PRODUCTION] Generated response: ${aiResponse.length} chars`);
+    console.log(`💰 [PRODUCTION] Token usage:`, response.usage);
 
-    if (err.includes("insufficient_quota") || err.includes("rate_limit")) {
+    return aiResponse;
+  } catch (error) {
+    console.error("❌ [PRODUCTION] OpenAI error:", error);
+    const err = error instanceof Error ? error.message : "Unknown error";
+    
+    if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
       return "I'm experiencing high demand right now. Please try again in a moment.";
-    } else if (err.includes("invalid_api_key")) {
+    } else if (err.includes('invalid_api_key')) {
       return "There's a configuration issue. Please contact support.";
     }
-
+    
     return "I'm experiencing technical difficulties. Please try again.";
   }
 }
 
-// ✅ Analyze single file content
 export async function analyzeFileContent(
   content: string,
   fileName: string,
@@ -206,17 +199,17 @@ export async function analyzeFileContent(
       messages: [
         {
           role: "system",
-          content: "Analyze the file content and provide a brief summary focused on SACCO operations.",
+          content: "Analyze the file content and provide a brief summary focused on SACCO operations."
         },
         {
           role: "user",
-          content: `Analyze ${fileName}: ${content.substring(0, 2000)}...`,
-        },
+          content: `Analyze ${fileName}: ${content.substring(0, 2000)}...`
+        }
       ],
       max_tokens: 200,
-      temperature: 0.1,
+      temperature: 0.1
     });
-
+    
     return response.choices[0].message.content || "Analysis completed.";
   } catch (error) {
     console.error("File analysis error:", error);
