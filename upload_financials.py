@@ -466,12 +466,41 @@ def main():
                 except psycopg2.Error as e:
                     print(f"   ❌ Database error for {file_path}: {e}")
         
+        # Commit all changes
         conn.commit()
         
-        conn.commit()
+        print(f"\n🎉 UPLOAD COMPLETE!")
+        print(f"   📊 Files found: {len(supported_files)}")
+        print(f"   ✅ Successfully uploaded: {successful_uploads}")
+        print(f"   ❌ Failed uploads: {len(supported_files) - successful_uploads}")
+        
+        # Show breakdown by file type
+        print(f"\n📋 BREAKDOWN BY TYPE:")
+        type_counts = {}
+        ext_counts = {}
+        for file_path in supported_files:
+            file_type = classify_file_type(file_path)
+            file_ext = Path(file_path).suffix.lower()
+            type_counts[file_type] = type_counts.get(file_type, 0) + 1
+            ext_counts[file_ext] = ext_counts.get(file_ext, 0) + 1
+        
+        for file_type, count in type_counts.items():
+            print(f"   {file_type.replace('_', ' ').title()}: {count} files")
+            
+        print(f"\n📄 BREAKDOWN BY FORMAT:")
+        for ext, count in ext_counts.items():
+            print(f"   {ext.upper()}: {count} files")
+        
+    except psycopg2.Error as e:
+        print(f"❌ Database connection error: {e}")
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
+        print("🔒 Database connection closed")
 
-print(f"\n📤 Upload Summary:\n"
-      f"   New files processed: {new_files}\n"
-      f"   Files skipped: {skipped_files}\n"
-      f"   Successful uploads: {successful_uploads}\n")
-
+if __name__ == "__main__":
+    main()
