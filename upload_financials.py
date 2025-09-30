@@ -468,4 +468,10 @@ def main():
         
         conn.commit()
         
-        print(f"\n
+        conn.commit()
+
+print(f"\n📤 Upload Summary:\n"
+      f"   New files processed: {new_files}\n"
+      f"   Files skipped: {skipped_files}\n"
+      f"   Successful uploads: {successful_uploads}\n")
+
