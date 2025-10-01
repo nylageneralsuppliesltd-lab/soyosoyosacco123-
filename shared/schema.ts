@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, jsonb, integer, boolean, vector } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, jsonb, integer, boolean, vector, serial } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -33,12 +33,22 @@ export const uploadedFiles = pgTable("uploaded_files", {
   extractedText: text("extracted_text"),
   metadata: jsonb("metadata").default("{}"),
   content: text("content"),
-  embedding: vector("embedding", "float4", { length: 1536 }),  // Clue vault! (null by default for old stuff)
+  embedding: vector("embedding", { dimensions: 1536 }), // Fixed: Correct vector type for pgvector
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
 });
 
-// API Logs Table (FIXED)
+// Document Chunks Table
+export const documentChunks = pgTable("document_chunks", {
+  id: serial("id").primaryKey(),
+  fileId: varchar("file_id", { length: 36 }).notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
+  chunkText: text("chunk_text").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }), // Vector for chunk embeddings
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// API Logs Table
 export const apiLogs = pgTable("api_logs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   endpoint: text("endpoint").notNull(),
@@ -64,10 +74,18 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
-export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
+export const uploadedFilesRelations = relations(uploadedFiles, ({ one, many }) => ({
   conversation: one(conversations, {
     fields: [uploadedFiles.conversationId],
     references: [conversations.id],
+  }),
+  chunks: many(documentChunks), // Added relation to document_chunks
+}));
+
+export const documentChunksRelations = relations(documentChunks, ({ one }) => ({
+  file: one(uploadedFiles, {
+    fields: [documentChunks.fileId],
+    references: [uploadedFiles.id],
   }),
 }));
 
@@ -90,6 +108,11 @@ export const insertFileSchema = createInsertSchema(uploadedFiles).omit({
   processed: true,
 });
 
+export const insertDocumentChunkSchema = createInsertSchema(documentChunks).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertApiLogSchema = createInsertSchema(apiLogs).omit({
   id: true,
   timestamp: true,
@@ -104,6 +127,9 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type UploadedFile = typeof uploadedFiles.$inferSelect;
 export type InsertFile = z.infer<typeof insertFileSchema>;
+
+export type DocumentChunk = typeof documentChunks.$inferSelect;
+export type InsertDocumentChunk = z.infer<typeof insertDocumentChunkSchema>;
 
 export type ApiLog = typeof apiLogs.$inferSelect;
 export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
