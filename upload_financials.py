@@ -6,7 +6,7 @@ Includes proper PDF extraction and chunking for vector embeddings
 """
 
 import pandas as pd
-import psycopg  # Updated import
+import psycopg
 import os
 import base64
 import json
@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List
 import openai
 import numpy as np
+from openai import OpenAI
+from time import sleep
 
 # Environment variables
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -36,7 +38,7 @@ SUPPORTED_EXTENSIONS = {
 # Initialize OpenAI client
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable not set")
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def chunk_text(text: str, max_chunk_size: int = 500, overlap: int = 50) -> List[str]:
     words = text.split()
@@ -54,13 +56,17 @@ def chunk_text(text: str, max_chunk_size: int = 500, overlap: int = 50) -> List[
         chunks.append(" ".join(current_chunk))
     return chunks
 
-def generate_embeddings(chunks: List[str]) -> List[List[float]]:
-    try:
-        response = openai.Embedding.create(input=chunks, model="text-embedding-ada-002")
-        return [embedding["embedding"] for embedding in response["data"]]
-    except Exception as e:
-        print(f"❌ Error generating embeddings: {e}")
-        return [[]] * len(chunks)
+def generate_embeddings(chunks: List[str], retries: int = 3) -> List[List[float]]:
+    for attempt in range(retries):
+        try:
+            response = client.embeddings.create(input=chunks, model="text-embedding-ada-002")
+            return [embedding.embedding for embedding in response.data]
+        except openai.OpenAIError as e:
+            print(f"⚠️ OpenAI API error (attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                sleep(2 ** attempt)  # Exponential backoff
+    print(f"❌ Failed to generate embeddings after {retries} attempts")
+    return [[]] * len(chunks)
 
 def generate_summary_embedding(chunks: List[str]) -> List[float]:
     embeddings = generate_embeddings(chunks)
@@ -174,7 +180,7 @@ def main():
         return
     print(f"📂 Found {len(supported_files)} supported files")
     try:
-        conn = psycopg.connect(DATABASE_URL)  # Updated connection
+        conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
         existing_files = get_existing_files(cur)
         monthly_patterns = ['%financial%', '%finance%', '%budget%', '%member%', '%dividend%', '%qualification%']
@@ -207,15 +213,15 @@ def main():
                     file_id = cur.fetchone()[0]
                     print(f"   ✅ Uploaded file: {file_data['filename']} (ID: {file_id})")
                     for idx, (chunk, embedding) in enumerate(zip(file_data["chunks"], file_data["chunk_embeddings"])):
-                        if embedding:
+                        if embedding:  # Only insert chunks with valid embeddings
                             cur.execute("""
                                 INSERT INTO document_chunks (
                                     file_id, chunk_text, chunk_index, embedding
                                 ) VALUES (%s, %s, %s, %s)
                             """, (file_id, chunk, idx, embedding))
-                    print(f"   ✅ Inserted {len(file_data['chunks'])} chunks")
+                    print(f"   ✅ Inserted {len([e for e in file_data['chunk_embeddings'] if e])} chunks")
                     successful_uploads += 1
-                except psycopg.Error as e:  # Updated exception
+                except psycopg.Error as e:
                     print(f"   ❌ Database error for {file_path}: {e}")
         conn.commit()
         print(f"\n🎉 UPLOAD COMPLETE! Successfully uploaded: {successful_uploads}/{new_files}")
