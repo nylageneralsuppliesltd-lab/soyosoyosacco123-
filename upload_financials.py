@@ -14,7 +14,6 @@ import glob
 from datetime import datetime
 from pathlib import Path
 from typing import List
-import openai
 import numpy as np
 from openai import OpenAI
 from time import sleep
@@ -24,7 +23,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Directories to scan for files
-SCAN_DIRECTORIES = ["financials/", "uploads/"]
+SCAN_DIRECTORIES = ["financials/", "uploads/", "main/financials/"]
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {
@@ -61,7 +60,7 @@ def generate_embeddings(chunks: List[str], retries: int = 3) -> List[List[float]
         try:
             response = client.embeddings.create(input=chunks, model="text-embedding-ada-002")
             return [embedding.embedding for embedding in response.data]
-        except openai.OpenAIError as e:
+        except Exception as e:
             print(f"⚠️ OpenAI API error (attempt {attempt + 1}/{retries}): {e}")
             if attempt < retries - 1:
                 sleep(2 ** attempt)  # Exponential backoff
@@ -75,7 +74,10 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
     return np.mean([emb for emb in embeddings if emb], axis=0).tolist()
 
 def classify_file_type(file_path: str) -> str:
-    return "financial_document"
+    filename = os.path.basename(file_path).lower()
+    if any(keyword in filename for keyword in ['financial', 'finance', 'budget', 'member', 'dividend', 'qualification', 'policy']):
+        return "financial_document"
+    return None  # Skip non-financial files
 
 def get_existing_files(cur) -> set:
     cur.execute("SELECT filename FROM uploaded_files WHERE processed = true")
@@ -111,8 +113,11 @@ def find_supported_files() -> List[str]:
 
 def process_file(file_path):
     try:
-        file_ext = Path(file_path).suffix.lower()
         file_type = classify_file_type(file_path)
+        if not file_type:
+            print(f"   ⏭️ Skipping non-financial file: {file_path}")
+            return None
+        file_ext = Path(file_path).suffix.lower()
         filename = os.path.basename(file_path)
         print(f"   🏷️ Type: {file_type} ({file_ext})")
         
