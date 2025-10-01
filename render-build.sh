@@ -7,14 +7,10 @@ echo "🚀 Starting Render build for SOYOSOYO SACCO..."
 export PYTHONUNBUFFERED=1
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Update system and install Python dependencies
+# Install Python dependencies from requirements.txt
 echo "📦 Installing Python dependencies..."
 pip install --upgrade pip
-pip install pandas psycopg2-binary openpyxl
-
-# Install PDF processing libraries for proper PDF extraction
-echo "📄 Installing PDF processing libraries..."
-pip install PyPDF2 pdfplumber
+pip install -r requirements.txt
 
 echo "📦 Installing Node.js dependencies..."
 npm install --production=false
@@ -27,7 +23,7 @@ npm run db:push --force || echo "⚠️ Database push completed with warnings"
 echo "🔨 Building frontend..."
 npx vite build
 
-# BUILD BACKEND (This was missing!)
+# BUILD BACKEND
 echo "🔧 Building backend..."
 npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
