@@ -6,7 +6,7 @@ Includes proper PDF extraction and chunking for vector embeddings
 """
 
 import pandas as pd
-import psycopg2
+import psycopg  # Updated import
 import os
 import base64
 import json
@@ -68,9 +68,100 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
         return None
     return np.mean([emb for emb in embeddings if emb], axis=0).tolist()
 
+def classify_file_type(file_path: str) -> str:
+    return "financial_document"
+
+def get_existing_files(cur) -> set:
+    cur.execute("SELECT filename FROM uploaded_files WHERE processed = true")
+    return {row[0] for row in cur.fetchall()}
+
+def is_monthly_file(filename: str) -> bool:
+    monthly_keywords = ['financial', 'finance', 'budget', 'member', 'dividend', 'qualification']
+    return any(keyword in filename.lower() for keyword in monthly_keywords)
+
+def extract_pdf_text(file_path: str) -> str:
+    import pdfplumber
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            text = "".join(page.extract_text() or "" for page in pdf.pages)
+        return text if text.strip() else "No text extracted from PDF"
+    except Exception as e:
+        print(f"Error extracting PDF text: {e}")
+        return ""
+
+def excel_to_readable_text(df_dict: dict, file_type: str, filename: str) -> str:
+    result = [f"=== SOYOSOYO SACCO EXCEL DOCUMENT ===\nFile: {filename}\nType: {file_type.replace('_', ' ').title()}\n"]
+    for sheet_name, df in df_dict.items():
+        result.append(f"\nSheet: {sheet_name}\n")
+        result.append(df.to_string(index=False))
+    return "\n".join(result)
+
+def find_supported_files() -> List[str]:
+    supported_files = []
+    for directory in SCAN_DIRECTORIES:
+        for ext in SUPPORTED_EXTENSIONS.keys():
+            supported_files.extend(glob.glob(f"{directory}**/*{ext}", recursive=True))
+    return supported_files
+
 def process_file(file_path):
-    # ... (same as previous response: process Excel, PDF, etc., and return file_data with chunks and embeddings)
-    pass
+    try:
+        file_ext = Path(file_path).suffix.lower()
+        file_type = classify_file_type(file_path)
+        filename = os.path.basename(file_path)
+        print(f"   🏷️ Type: {file_type} ({file_ext})")
+        
+        if file_ext in ['.xlsx', '.xls']:
+            df_dict = pd.read_excel(file_path, sheet_name=None, engine='openpyxl')
+            extracted_text = excel_to_readable_text(df_dict, file_type, filename)
+        elif file_ext == '.pdf':
+            extracted_text = extract_pdf_text(file_path)
+        elif file_ext == '.txt':
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            extracted_text = f"=== SOYOSOYO SACCO TEXT DOCUMENT ===\nFile: {filename}\nType: {file_type.replace('_', ' ').title()}\n\n{content}"
+        elif file_ext == '.csv':
+            df = pd.read_csv(file_path)
+            df_dict = {'Sheet1': df}
+            extracted_text = excel_to_readable_text(df_dict, file_type, filename)
+        else:
+            print(f"   ⚠️ Unsupported file type: {file_ext}")
+            return None
+        
+        with open(file_path, 'rb') as file:
+            file_content = base64.b64encode(file.read()).decode('utf-8')
+        
+        file_size = os.path.getsize(file_path)
+        mime_type = SUPPORTED_EXTENSIONS.get(file_ext, 'application/octet-stream')
+        
+        metadata = {
+            "file_type": file_type,
+            "file_extension": file_ext,
+            "analysis": f"{file_type.replace('_', ' ').title()} document processed automatically",
+            "upload_method": "smart_uploader",
+            "source_path": file_path,
+            "processed_date": datetime.now().isoformat()
+        }
+        
+        text_chunks = chunk_text(extracted_text, max_chunk_size=500, overlap=50)
+        chunk_embeddings = generate_embeddings(text_chunks)
+        summary_embedding = generate_summary_embedding(text_chunks)
+        
+        return {
+            "filename": filename,
+            "original_name": filename,
+            "mime_type": mime_type,
+            "size": file_size,
+            "extracted_text": extracted_text,
+            "metadata": json.dumps(metadata),
+            "content": file_content,
+            "file_type": file_type,
+            "chunks": text_chunks,
+            "chunk_embeddings": chunk_embeddings,
+            "summary_embedding": summary_embedding
+        }
+    except Exception as e:
+        print(f"   ❌ Error processing {file_path}: {e}")
+        return None
 
 def main():
     print("🚀 Starting SMART Document Upload for SOYOSOYO SACCO...")
@@ -83,7 +174,7 @@ def main():
         return
     print(f"📂 Found {len(supported_files)} supported files")
     try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        conn = psycopg.connect(DATABASE_URL)  # Updated connection
         cur = conn.cursor()
         existing_files = get_existing_files(cur)
         monthly_patterns = ['%financial%', '%finance%', '%budget%', '%member%', '%dividend%', '%qualification%']
@@ -124,11 +215,11 @@ def main():
                             """, (file_id, chunk, idx, embedding))
                     print(f"   ✅ Inserted {len(file_data['chunks'])} chunks")
                     successful_uploads += 1
-                except psycopg2.Error as e:
+                except psycopg.Error as e:  # Updated exception
                     print(f"   ❌ Database error for {file_path}: {e}")
         conn.commit()
         print(f"\n🎉 UPLOAD COMPLETE! Successfully uploaded: {successful_uploads}/{new_files}")
-    except psycopg2.Error as e:
+    except psycopg.Error as e:
         print(f"❌ Database connection error: {e}")
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
