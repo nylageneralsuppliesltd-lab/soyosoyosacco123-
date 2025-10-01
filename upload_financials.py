@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 SMART DOCUMENT UPLOADER FOR SOYOSOYO SACCO
-Uploads ALL SACCO documents (financial, bylaws, policies, dividends, member docs, etc.)
-Monthly files are refreshed automatically
+Properly handles deduplication - monthly files refresh, others skip if existing
 """
 
 import pandas as pd
@@ -21,10 +20,8 @@ from time import sleep
 DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Directories to scan
-SCAN_DIRECTORIES = ["financials/", "uploads/", "main/financials/", "documents/", "data/"]
+SCAN_DIRECTORIES = ["financials/", "uploads/"]
 
-# Supported file types
 SUPPORTED_EXTENSIONS = {
     '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     '.xls': 'application/vnd.ms-excel',
@@ -72,40 +69,30 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
     return np.mean([emb for emb in embeddings if emb], axis=0).tolist()
 
 def classify_file_type(file_path: str) -> str:
-    """✅ FIXED: Now accepts ALL SACCO files, not just specific keywords"""
     filename = os.path.basename(file_path).lower()
     
-    # Financial documents
     if any(k in filename for k in ['financial', 'finance', 'budget', 'balance', 'income', 'expense', 'profit', 'loss']):
         return "financial_report"
     
-    # Member & dividend documents
     if any(k in filename for k in ['member', 'dividend', 'distribution', 'payout', 'share', 'contribution']):
         return "member_dividend"
     
-    # Bylaws & policies
     if any(k in filename for k in ['bylaw', 'policy', 'regulation', 'rule', 'governance', 'constitution']):
         return "policy_document"
     
-    # Loan documents
     if any(k in filename for k in ['loan', 'lending', 'credit', 'qualification', 'application']):
         return "loan_document"
     
-    # Default: Accept as general SACCO document
     return "sacco_document"
 
-def get_existing_files(cur) -> set:
-    cur.execute("SELECT original_name FROM uploaded_files WHERE processed = true")
-    return {row[0] for row in cur.fetchall()}
-
 def is_monthly_file(filename: str) -> bool:
-    """✅ FIXED: Expanded keywords to catch all monthly updates"""
+    """Check if file should be refreshed monthly"""
     monthly_keywords = [
         'financial', 'finance', 'budget', 
         'member', 'dividend', 'distribution', 'payout',
         'contribution', 'qualification',
-        'sep', 'sept', 'september', 'aug', 'august', 'oct', 'october',  # Month names
-        '2025', '2024'  # Year indicators
+        'sep', 'sept', 'september', 'aug', 'august', 'oct', 'october',
+        '2025', '2024'
     ]
     filename_lower = filename.lower()
     return any(keyword in filename_lower for keyword in monthly_keywords)
@@ -140,7 +127,6 @@ def find_supported_files() -> List[str]:
     return supported_files
 
 def process_file(file_path):
-    """✅ FIXED: Now processes ALL files, no rejections"""
     try:
         file_type = classify_file_type(file_path)
         file_ext = Path(file_path).suffix.lower()
@@ -202,7 +188,7 @@ def process_file(file_path):
 
 def main():
     print("🚀 Starting SMART Document Upload for SOYOSOYO SACCO...")
-    print("✅ ALL SACCO documents will be processed (financial, dividends, bylaws, policies, etc.)")
+    print("✅ Monthly files refresh automatically, static files upload once")
     
     if not DATABASE_URL or not OPENAI_API_KEY:
         print("❌ Error: Missing DATABASE_URL or OPENAI_API_KEY")
@@ -210,19 +196,16 @@ def main():
     
     supported_files = find_supported_files()
     if not supported_files:
-        print("ℹ️ No supported files found in any directory")
+        print("ℹ️ No supported files found")
         return
     
-    print(f"📂 Found {len(supported_files)} total files")
+    print(f"📂 Found {len(supported_files)} total files\n")
     
     try:
         conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
-        existing_files = get_existing_files(cur)
         
-        print(f"📊 Database has {len(existing_files)} existing files")
-        
-        # Delete monthly files for refresh
+        # ✅ STEP 1: Delete monthly files FIRST (before checking existing)
         monthly_patterns = [
             '%financial%', '%finance%', '%budget%', 
             '%member%', '%dividend%', '%distribution%', '%payout%',
@@ -230,24 +213,42 @@ def main():
             '%sep%', '%sept%', '%august%', '%2025%'
         ]
         
+        print("🗑️ Refreshing monthly files...")
         deleted_count = 0
         for pattern in monthly_patterns:
-            cur.execute("DELETE FROM document_chunks WHERE file_id IN (SELECT id FROM uploaded_files WHERE original_name ILIKE %s)", (pattern,))
-            cur.execute("DELETE FROM uploaded_files WHERE original_name ILIKE %s", (pattern,))
-            deleted_count += cur.rowcount
+            cur.execute("SELECT original_name FROM uploaded_files WHERE original_name ILIKE %s", (pattern,))
+            files_to_delete = [row[0] for row in cur.fetchall()]
+            
+            if files_to_delete:
+                cur.execute("DELETE FROM document_chunks WHERE file_id IN (SELECT id FROM uploaded_files WHERE original_name ILIKE %s)", (pattern,))
+                cur.execute("DELETE FROM uploaded_files WHERE original_name ILIKE %s", (pattern,))
+                deleted_count += len(files_to_delete)
+                for fname in files_to_delete:
+                    print(f"   🔄 Refreshing: {fname}")
         
-        print(f"🗑️ Deleted {deleted_count} monthly files for refresh")
+        print(f"✅ Deleted {deleted_count} monthly files for refresh\n")
         
+        # ✅ STEP 2: NOW get existing files (after deletion)
+        cur.execute("SELECT original_name FROM uploaded_files WHERE processed = true")
+        existing_files = {row[0] for row in cur.fetchall()}
+        print(f"📊 Database has {len(existing_files)} existing static files\n")
+        
+        # ✅ STEP 3: Process files with proper deduplication
         new_files = 0
+        skipped_files = 0
         successful_uploads = 0
         
         for file_path in supported_files:
             filename = os.path.basename(file_path)
             
-            # Skip only if not a monthly file AND already exists
-            if filename in existing_files and not is_monthly_file(filename):
-                print(f"⏭️ Skipping: {filename} (already uploaded)")
-                continue
+            # ✅ PROPER CHECK: Skip only if exists AND not monthly
+            if filename in existing_files:
+                if not is_monthly_file(filename):
+                    print(f"⏭️ Skipping: {filename} (already in database)")
+                    skipped_files += 1
+                    continue
+                else:
+                    print(f"🔄 Re-uploading monthly file: {filename}")
             
             print(f"🆕 Processing: {filename}")
             new_files += 1
@@ -279,15 +280,24 @@ def main():
                             """, (file_id, chunk, idx, embedding))
                             chunk_count += 1
                     
-                    print(f"   ✅ Inserted {chunk_count} chunks with embeddings")
+                    print(f"   ✅ Inserted {chunk_count} chunks with embeddings\n")
                     successful_uploads += 1
                 except psycopg.Error as e:
-                    print(f"   ❌ Database error: {e}")
+                    print(f"   ❌ Database error: {e}\n")
         
         conn.commit()
-        print(f"\n🎉 UPLOAD COMPLETE!")
-        print(f"   ✅ Successfully uploaded: {successful_uploads}/{new_files} files")
-        print(f"   📊 Total files in database: {successful_uploads + len(existing_files)}")
+        
+        # Final count
+        cur.execute("SELECT COUNT(*) FROM uploaded_files")
+        total_in_db = cur.fetchone()[0]
+        
+        print(f"\n{'='*60}")
+        print(f"🎉 UPLOAD COMPLETE!")
+        print(f"{'='*60}")
+        print(f"   ✅ Successfully uploaded: {successful_uploads} files")
+        print(f"   ⏭️ Skipped (existing): {skipped_files} files")
+        print(f"   📊 Total in database: {total_in_db} files")
+        print(f"{'='*60}\n")
         
     except psycopg.Error as e:
         print(f"❌ Database connection error: {e}")
