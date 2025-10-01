@@ -6,7 +6,7 @@ import { eq, desc, isNotNull, sql } from "drizzle-orm";
 import { generateChatResponse, analyzeFileContent } from "./services/openai.js";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
-import { getEmbedding } from "./utils/embeddings.js";  // 🪄 New wand import
+import { getEmbedding } from "./utils/embeddings";  // 🪄 New wand import
 
 const upload = multer({
   dest: "uploads/",
