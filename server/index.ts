@@ -32,9 +32,10 @@ async function startServer() {
     console.log("🔧 [STARTUP] Environment:", process.env.NODE_ENV || 'development');
     console.log("💾 [STARTUP] Database:", process.env.DATABASE_URL ? 'Connected' : 'Missing');
     console.log("🤖 [STARTUP] OpenAI:", process.env.OPENAI_API_KEY ? 'Ready' : 'Missing');
+    console.log("🔒 [STARTUP] Fix secret:", process.env.FIX_SECRET ? 'Set' : 'Add FIX_SECRET=yourword in Render env!');  // 🪄 Nudge
     
-    // Register API routes and pass getEncoding
-    registerRoutes(app, getEncoding);
+    // Register API routes (no getEncoding needed)
+    registerRoutes(app);
     console.log("✅ [STARTUP] API routes registered successfully");
     
     // Serve static files in production
@@ -67,6 +68,7 @@ async function startServer() {
       console.log(`🚀 [STARTUP] Server running on port ${port}`);
       console.log(`🌐 [STARTUP] Health check: http://localhost:${port}/health`);
       console.log(`📱 [STARTUP] Chat API: http://localhost:${port}/api/chat`);
+      console.log(`🔒 [STARTUP] Fix embeddings: POST /api/admin/fix-embeddings with {"secret":"yourword"}`);
       console.log("✅ [STARTUP] SOYOSOYO SACCO API ready for requests");
     });
     
