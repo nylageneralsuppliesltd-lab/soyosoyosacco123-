@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, jsonb, integer, boolean, vector } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -33,6 +33,7 @@ export const uploadedFiles = pgTable("uploaded_files", {
   extractedText: text("extracted_text"),
   metadata: jsonb("metadata").default("{}"),
   content: text("content"),
+  embedding: vector("embedding", "float4", { length: 1536 }),  // Clue vault! (null by default for old stuff)
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   processed: boolean("processed").default(false).notNull(),
 });
