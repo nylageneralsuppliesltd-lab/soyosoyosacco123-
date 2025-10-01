@@ -2,17 +2,18 @@ import express from "express";
 import multer from "multer";
 import { db } from "./db.js";
 import { conversations, messages, uploadedFiles } from "../shared/schema.js";
-import { eq, desc, isNotNull } from "drizzle-orm";
+import { eq, desc, isNotNull, sql } from "drizzle-orm";
 import { generateChatResponse, analyzeFileContent } from "./services/openai.js";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
+import { getEmbedding } from "./utils/embeddings.js";  // 🪄 New wand import
 
 const upload = multer({
   dest: "uploads/",
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-async function processFile(filePath: string, originalName: string, mimeType: string) {
+async function processFile(filePath, originalName, mimeType) {
   try {
     console.log(`📄 [PRODUCTION] Processing: ${originalName}`);
     const fileBuffer = fs.readFileSync(filePath);
@@ -48,6 +49,7 @@ router.get("/debug/files", async (req, res) => {
   try {
     const totalFiles = await db.$count(uploadedFiles);
     const filesWithText = await db.$count(uploadedFiles, isNotNull(uploadedFiles.extractedText));
+    const filesWithEmbedding = await db.$count(uploadedFiles, isNotNull(uploadedFiles.embedding));  // 🪄 New stat
 
     const recentFiles = await db
       .select({ filename: uploadedFiles.originalName, uploadedAt: uploadedFiles.uploadedAt })
@@ -63,6 +65,7 @@ router.get("/debug/files", async (req, res) => {
       stats: {
         total: totalFiles,
         withText: filesWithText,
+        withEmbedding: filesWithEmbedding,  // 🪄 Peek clues
         bylaws: bylawsFiles.length,
         recent: recentFiles
       }
@@ -110,6 +113,50 @@ router.get("/debug/texts", async (req, res) => {
 });
 
 // ========================================
+// SECRET ADMIN (FOR ONE-TIME FIX)
+// ========================================
+router.post("/admin/fix-embeddings", async (req, res) => {  // 🪄 Secret door!
+  const { secret } = req.body;
+  if (secret !== process.env.FIX_SECRET) {
+    return res.status(401).json({ error: 'Shoo, intruder!' });
+  }
+
+  try {
+    console.log('🪄 Serverless clue party starting...');
+
+    const oldFiles = await db
+      .select({ id: uploadedFiles.id, content: uploadedFiles.content, extractedText: uploadedFiles.extractedText })
+      .from(uploadedFiles)
+      .where(sql`embedding IS NULL`)
+      .where(sql`content IS NOT NULL OR extractedText IS NOT NULL`);
+
+    console.log(`Found ${oldFiles.length} stories to sparkle!`);
+
+    let fixedCount = 0;
+    for (const file of oldFiles) {
+      const text = file.content || file.extractedText || '';
+      if (!text.trim()) continue;
+
+      const embedding = await getEmbedding(text);
+      if (embedding.length > 0) {
+        await db
+          .update(uploadedFiles)
+          .set({ embedding })
+          .where(eq(uploadedFiles.id, file.id));
+        fixedCount++;
+        console.log(`✨ Sparkled ${file.id.slice(0,8)}...`);
+      }
+    }
+
+    res.json({ success: true, fixed: fixedCount, total: oldFiles.length });
+    console.log(`🎉 Party over: ${fixedCount} clued!`);
+  } catch (error) {
+    console.error('Party crasher:', error);
+    res.status(500).json({ error: 'Oops—try again?' });
+  }
+});
+
+// ========================================
 // MAIN API ENDPOINTS
 // ========================================
 
@@ -139,7 +186,7 @@ router.post("/chat", async (req, res) => {
 });
 
 // File upload
-router.post("/upload", upload.single("file"), async (req, res) => {
+router.post("/upload", upload.single("file"), async (req, res) => {  // 🪄 Auto-clue new files
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -152,6 +199,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       extractedText: result.text,
       processed: true
     }).returning({ id: uploadedFiles.id });
+
+    // 🪄 Zap clue for new story
+    const text = result.text;
+    const embedding = await getEmbedding(text);
+    if (embedding.length > 0) {
+      await db.update(uploadedFiles).set({ embedding }).where(eq(uploadedFiles.id, uploadedFile.id));
+      console.log(`✨ Auto-clued new file ${uploadedFile.id.slice(0,8)}...`);
+    }
 
     res.json({ success: true, file: { id: uploadedFile.id, name: req.file.originalname, size: req.file.size, extractedTextLength: result.text?.length || 0 } });
   } catch (error) {
@@ -207,7 +262,7 @@ router.get("/stats", async (req, res) => {
 });
 
 // Export
-export function registerRoutes(app: express.Application) {
+export function registerRoutes(app) {  // Dropped unused getEncoding
   app.use("/api", router);
   console.log("✅ [PRODUCTION] API routes registered successfully");
 }
