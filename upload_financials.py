@@ -24,7 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Directories to scan for files
-SCAN_DIRECTORIES = ["financials/", "uploads/","main"]
+SCAN_DIRECTORIES = ["financials/", "uploads/"]
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {
