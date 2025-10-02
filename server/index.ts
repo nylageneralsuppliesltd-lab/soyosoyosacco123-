@@ -6,10 +6,25 @@ import { promisify } from "util";
 // ✅ Fixed import for tiktoken (CommonJS in ESM)
 import tiktokenPkg from "tiktoken";
 const { getEncoding } = tiktokenPkg;
+import { Pool } from "pg"; // For DB connection
+import { drizzle } from "drizzle-orm/node-postgres"; // For ORM
 
 const execAsync = promisify(exec);
 const app = express();
 const port = process.env.PORT || 5000;
+
+// DB Setup (global for reuse in modules like chat)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { 
+    rejectUnauthorized: false 
+  },
+  enableChannelBinding: true,  // Opt-in for Neon's channel_binding=require
+});
+const db = drizzle(pool);
+
+// Export for other modules (e.g., chat.ts)
+export { db, pool };
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -46,6 +61,14 @@ async function startServer() {
     console.log("🤖 [STARTUP] OpenAI:", process.env.OPENAI_API_KEY ? 'Ready' : 'Missing');
     console.log("🔒 [STARTUP] Fix secret:", process.env.FIX_SECRET ? 'Set' : 'Add FIX_SECRET=yourword in Render env!');
     
+    // Test DB connection on startup (optional, for logs)
+    try {
+      await pool.query('SELECT 1');
+      console.log("💾 [STARTUP] Database: Connected");
+    } catch (dbError) {
+      console.error("💾 [STARTUP] Database connection failed:", dbError);
+    }
+    
     registerRoutes(app);
     console.log("✅ [STARTUP] API routes registered successfully");
     
@@ -60,12 +83,17 @@ async function startServer() {
       console.log("✅ [STARTUP] Static file serving configured");
     }
     
-    app.get('/health', (req, res) => {
+    app.get('/health', async (req, res) => {
+      let dbStatus = false;
+      try {
+        await pool.query('SELECT 1');
+        dbStatus = true;
+      } catch {}
       res.json({ 
         status: 'healthy',
         service: 'SOYOSOYO SACCO API',
         timestamp: new Date().toISOString(),
-        database: !!process.env.DATABASE_URL,
+        database: dbStatus,
         openai: !!process.env.OPENAI_API_KEY
       });
     });
