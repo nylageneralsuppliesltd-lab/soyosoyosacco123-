@@ -1,22 +1,76 @@
 import OpenAI from "openai";
 import { searchSimilarChunks } from "./vectorSearch.js";
+import { Pool } from "pg"; // npm install pg @types/pg
+import { v4 as uuidv4 } from "uuid"; // npm install uuid @types/uuid
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
 
+// Neon Postgres pool (connects per request for serverless)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }, // For Neon
+});
+
+// DB helper: Get history (empty if none)
+async function getHistory(conversationId: string) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      "SELECT messages FROM chat_history WHERE conversation_id = $1",
+      [conversationId]
+    );
+    return res.rows[0]?.messages || [];
+  } finally {
+    client.release();
+  }
+}
+
+// DB helper: Save/upsert history (trims to last 20 msgs)
+async function saveHistory(conversationId: string, messages: Array<{ role: "user" | "assistant"; content: string }>) {
+  const client = await pool.connect();
+  try {
+    const trimmed = messages.slice(-20);
+    await client.query(
+      "INSERT INTO chat_history (conversation_id, messages) VALUES ($1, $2) ON CONFLICT (conversation_id) DO UPDATE SET messages = $2, updated_at = CURRENT_TIMESTAMP",
+      [conversationId, JSON.stringify(trimmed)]
+    );
+  } finally {
+    client.release();
+  }
+}
+
 export async function generateChatResponse(
   userMessage: string,
   conversationId?: string
-): Promise<string> {
+): Promise<{ response: string; conversationId?: string }> { // Minor: Return object for ID passthrough
+  let finalId = conversationId;
+  if (!finalId) {
+    finalId = uuidv4();
+    console.log(`🆕 [CHAT] New conversation started: ${finalId}`);
+  }
+
   try {
     console.log(`🤖 [CHAT] Processing: "${userMessage.slice(0, 100)}..."`);
+
+    // Load history if ID provided
+    let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+    if (finalId) {
+      history = await getHistory(finalId);
+      history = history.slice(-20); // Trim for tokens
+      console.log(`📜 [CHAT] Loaded ${history.length} messages from history`);
+    }
 
     // Use vector search to find most relevant chunks
     const relevantChunks = await searchSimilarChunks(userMessage, 15);
     
     if (relevantChunks.length === 0) {
-      return "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
+      const fallbackResponse = "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
+      if (finalId) {
+        await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+      }
+      return { response: fallbackResponse, conversationId: finalId };
     }
 
     // Prioritize financial documents
@@ -53,12 +107,16 @@ CRITICAL INSTRUCTIONS:
 RELEVANT SOYOSOYO SACCO DOCUMENTS:
 ${context}`;
 
+    // Build messages with history (minimal addition)
+    const messages = [
+      { role: "system", content: systemMessage },
+      ...history.map(msg => ({ role: msg.role, content: msg.content })),
+      { role: "user", content: userMessage }
+    ];
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: userMessage }
-      ],
+      messages,
       max_tokens: 1000,
       temperature: 0.1,
     });
@@ -67,18 +125,31 @@ ${context}`;
     console.log(`✅ [CHAT] Response: ${aiResponse.length} chars`);
     console.log(`💰 [CHAT] Tokens:`, response.usage);
 
-    return aiResponse;
+    // Save to history
+    if (finalId && aiResponse !== "I couldn't generate a response.") {
+      history.push({ role: "user" as const, content: userMessage });
+      history.push({ role: "assistant" as const, content: aiResponse });
+      await saveHistory(finalId, history);
+    }
+
+    return { response: aiResponse, conversationId: finalId };
   } catch (error) {
     console.error("❌ [CHAT] Error:", error);
     const err = error instanceof Error ? error.message : "Unknown error";
     
     if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
-      return "I'm experiencing high demand. Please try again in a moment.";
+      const fallback = "I'm experiencing high demand. Please try again in a moment.";
+      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
+      return { response: fallback, conversationId: finalId };
     } else if (err.includes('invalid_api_key')) {
-      return "Configuration issue. Please contact support.";
+      const fallback = "Configuration issue. Please contact support.";
+      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
+      return { response: fallback, conversationId: finalId };
     }
     
-    return "I'm experiencing technical difficulties. Please try again.";
+    const fallback = "I'm experiencing technical difficulties. Please try again.";
+    if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
+    return { response: fallback, conversationId: finalId };
   }
 }
 
