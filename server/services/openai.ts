@@ -1,58 +1,62 @@
 import OpenAI from "openai";
 import { searchSimilarChunks } from "./vectorSearch.js";
-import { Pool } from "pg"; // npm install pg @types/pg
-import { v4 as uuidv4 } from "uuid"; // npm install uuid @types/uuid
+import { eq, desc } from "drizzle-orm";
+import { conversations, messages } from "../../shared/schema.js"; // Adjust path to match your schema location from routes
+import { db } from "../db.js"; // Import from your DB setup (index.js exports)
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
 
-// Neon Postgres pool (connects per request for serverless)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { 
-    rejectUnauthorized: false 
-  },
-  enableChannelBinding: true,  // Opt-in for Neon's channel_binding=require
-});
-
-// DB helper: Get history (empty if none)
-async function getHistory(conversationId: string) {
-  const client = await pool.connect();
-  try {
-    const res = await client.query(
-      "SELECT messages FROM chat_history WHERE conversation_id = $1",
-      [conversationId]
-    );
-    return res.rows[0]?.messages || [];
-  } finally {
-    client.release();
+// Helper: Get or create conversation ID
+async function getOrCreateConversation(conversationId?: string): Promise<string> {
+  if (conversationId) {
+    // Check if exists
+    const existing = await db.select({ id: conversations.id }).from(conversations).where(eq(conversations.id, conversationId)).limit(1);
+    if (existing.length > 0) {
+      return existing[0].id;
+    }
   }
+  // Create new
+  const [newConv] = await db.insert(conversations).values({
+    title: "New Conversation", // Can update later based on first message if needed
+  }).returning({ id: conversations.id });
+  console.log(`🆕 [CHAT] New conversation started: ${newConv.id}`);
+  return newConv.id;
 }
 
-// DB helper: Save/upsert history (trims to last 20 msgs)
-async function saveHistory(conversationId: string, messages: Array<{ role: "user" | "assistant"; content: string }>) {
-  const client = await pool.connect();
-  try {
-    const trimmed = messages.slice(-20);
-    await client.query(
-      "INSERT INTO chat_history (conversation_id, messages) VALUES ($1, $2) ON CONFLICT (conversation_id) DO UPDATE SET messages = $2, updated_at = CURRENT_TIMESTAMP",
-      [conversationId, JSON.stringify(trimmed)]
-    );
-  } finally {
-    client.release();
-  }
+// Helper: Load history messages
+async function loadHistory(conversationId: string): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+  const history = await db.select({
+    role: messages.role,
+    content: messages.content,
+  }).from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.timestamp);
+  
+  // Trim to last 20 for token limits
+  return history.slice(-20);
+}
+
+// Helper: Save user and assistant messages
+async function saveMessages(conversationId: string, userMessage: string, assistantResponse: string): Promise<void> {
+  await db.insert(messages).values([
+    {
+      conversationId,
+      content: userMessage,
+      role: "user",
+    },
+    {
+      conversationId,
+      content: assistantResponse,
+      role: "assistant",
+    },
+  ]);
 }
 
 export async function generateChatResponse(
   userMessage: string,
   conversationId?: string
-): Promise<{ response: string; conversationId?: string }> { // Minor: Return object for ID passthrough
-  let finalId = conversationId;
-  if (!finalId) {
-    finalId = uuidv4();
-    console.log(`🆕 [CHAT] New conversation started: ${finalId}`);
-  }
+): Promise<{ response: string; conversationId: string }> { // Return object with required ID
+  const finalId = await getOrCreateConversation(conversationId);
 
   let history: Array<{ role: "user" | "assistant"; content: string }> = [];
   let fallbackResponse: string | undefined;
@@ -60,21 +64,16 @@ export async function generateChatResponse(
   try {
     console.log(`🤖 [CHAT] Processing: "${userMessage.slice(0, 100)}..."`);
 
-    // Load history if ID provided
-    if (finalId) {
-      history = await getHistory(finalId);
-      history = history.slice(-20); // Trim for tokens
-      console.log(`📜 [CHAT] Loaded ${history.length} messages from history`);
-    }
+    // Load history
+    history = await loadHistory(finalId);
+    console.log(`📜 [CHAT] Loaded ${history.length} messages from history`);
 
     // Use vector search to find most relevant chunks
     const relevantChunks = await searchSimilarChunks(userMessage, 15);
     
     if (relevantChunks.length === 0) {
       fallbackResponse = "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
-      if (finalId) {
-        await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
-      }
+      await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     }
 
@@ -113,7 +112,7 @@ RELEVANT SOYOSOYO SACCO DOCUMENTS:
 ${context}`;
 
     // Build messages with history (minimal addition)
-    const messages = [
+    const messagesForOpenAI = [
       { role: "system", content: systemMessage },
       ...history.map(msg => ({ role: msg.role, content: msg.content })),
       { role: "user", content: userMessage }
@@ -121,7 +120,7 @@ ${context}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages,
+      messages: messagesForOpenAI,
       max_tokens: 1000,
       temperature: 0.1,
     });
@@ -131,10 +130,8 @@ ${context}`;
     console.log(`💰 [CHAT] Tokens:`, response.usage);
 
     // Save to history
-    if (finalId && aiResponse !== "I couldn't generate a response.") {
-      history.push({ role: "user" as const, content: userMessage });
-      history.push({ role: "assistant" as const, content: aiResponse });
-      await saveHistory(finalId, history);
+    if (aiResponse !== "I couldn't generate a response.") {
+      await saveMessages(finalId, userMessage, aiResponse);
     }
 
     return { response: aiResponse, conversationId: finalId };
@@ -144,16 +141,16 @@ ${context}`;
     
     if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
       fallbackResponse = "I'm experiencing high demand. Please try again in a moment.";
-      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+      await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     } else if (err.includes('invalid_api_key')) {
       fallbackResponse = "Configuration issue. Please contact support.";
-      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+      await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     }
     
     fallbackResponse = "I'm experiencing technical difficulties. Please try again.";
-    if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+    await saveMessages(finalId, userMessage, fallbackResponse);
     return { response: fallbackResponse, conversationId: finalId };
   }
 }
@@ -185,4 +182,10 @@ export async function analyzeFileContent(
     console.error("File analysis error:", error);
     return "Analysis completed.";
   }
+}
+
+// Export for debug endpoint in routes
+export async function getAllExtractedTexts() {
+  const files = await db.select({ extractedText: messages.extractedText }).from(uploadedFiles).where(isNotNull(uploadedFiles.extractedText));
+  return files.map(f => f.extractedText || '').join('\n\n---\n\n');
 }
