@@ -10,7 +10,10 @@ const openai = new OpenAI({
 // Neon Postgres pool (connects per request for serverless)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // For Neon
+  ssl: { 
+    rejectUnauthorized: false 
+  },
+  enableChannelBinding: true,  // Opt-in for Neon's channel_binding=require
 });
 
 // DB helper: Get history (empty if none)
@@ -51,11 +54,13 @@ export async function generateChatResponse(
     console.log(`🆕 [CHAT] New conversation started: ${finalId}`);
   }
 
+  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+  let fallbackResponse: string | undefined;
+
   try {
     console.log(`🤖 [CHAT] Processing: "${userMessage.slice(0, 100)}..."`);
 
     // Load history if ID provided
-    let history: Array<{ role: "user" | "assistant"; content: string }> = [];
     if (finalId) {
       history = await getHistory(finalId);
       history = history.slice(-20); // Trim for tokens
@@ -66,7 +71,7 @@ export async function generateChatResponse(
     const relevantChunks = await searchSimilarChunks(userMessage, 15);
     
     if (relevantChunks.length === 0) {
-      const fallbackResponse = "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
+      fallbackResponse = "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
       if (finalId) {
         await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
       }
@@ -138,18 +143,18 @@ ${context}`;
     const err = error instanceof Error ? error.message : "Unknown error";
     
     if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
-      const fallback = "I'm experiencing high demand. Please try again in a moment.";
-      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
-      return { response: fallback, conversationId: finalId };
+      fallbackResponse = "I'm experiencing high demand. Please try again in a moment.";
+      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+      return { response: fallbackResponse, conversationId: finalId };
     } else if (err.includes('invalid_api_key')) {
-      const fallback = "Configuration issue. Please contact support.";
-      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
-      return { response: fallback, conversationId: finalId };
+      fallbackResponse = "Configuration issue. Please contact support.";
+      if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+      return { response: fallbackResponse, conversationId: finalId };
     }
     
-    const fallback = "I'm experiencing technical difficulties. Please try again.";
-    if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallback }]);
-    return { response: fallback, conversationId: finalId };
+    fallbackResponse = "I'm experiencing technical difficulties. Please try again.";
+    if (finalId) await saveHistory(finalId, [...history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: fallbackResponse }]);
+    return { response: fallbackResponse, conversationId: finalId };
   }
 }
 
