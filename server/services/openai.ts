@@ -107,7 +107,10 @@ CRITICAL INSTRUCTIONS:
 - Provide specific numbers and amounts from documents
 - Use **bold** for important figures
 - If info not in documents, say: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
-
+MATH/FORMATTING RULES:
+- Always show calculations in plain text style (example: ROA = (8811.29 ÷ 786613.44) × 100 = 1.12%)
+- Do NOT use LaTeX (\[ \], \( \), ^, _) or math markup
+- Keep it readable like a financial report
 RELEVANT SOYOSOYO SACCO DOCUMENTS:
 ${context}`;
 
