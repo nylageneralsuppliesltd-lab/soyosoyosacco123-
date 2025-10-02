@@ -166,19 +166,14 @@ router.post("/chat", async (req, res) => {
     const { message, conversationId } = req.body;
     if (!message || typeof message !== 'string') return res.status(400).json({ error: "Message is required" });
 
-    let currentConversationId = conversationId;
+    // Let generateChatResponse handle conversation creation, history loading, and saving
+    const { response: aiResponse, conversationId: currentConversationId } = await generateChatResponse(message, conversationId);
 
-    if (!currentConversationId) {
-      const [newConv] = await db.insert(conversations).values({ title: message.substring(0, 100) }).returning({ id: conversations.id });
-      currentConversationId = newConv.id;
-    }
+    // Return the last message ID (fetched from DB after save in chat function)
+    const recentMessages = await db.select({ id: messages.id }).from(messages).where(eq(messages.conversationId, currentConversationId)).orderBy(desc(messages.timestamp)).limit(1);
+    const messageId = recentMessages[0]?.id || uuidv4(); // Fallback UUID if no messages yet
 
-    await db.insert(messages).values({ conversationId: currentConversationId, role: "user", content: message });
-    const aiResponse = await generateChatResponse(message, currentConversationId);
-
-    const [savedMessage] = await db.insert(messages).values({ conversationId: currentConversationId, role: "assistant", content: aiResponse }).returning({ id: messages.id });
-
-    res.json({ response: aiResponse, conversationId: currentConversationId, messageId: savedMessage.id });
+    res.json({ response: aiResponse, conversationId: currentConversationId, messageId });
   } catch (error) {
     const err = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Failed to process chat message. Please try again.", details: err });
