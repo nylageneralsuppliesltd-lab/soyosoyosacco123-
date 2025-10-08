@@ -11,15 +11,13 @@ const openai = new OpenAI({
 // Helper: Get or create conversation ID
 async function getOrCreateConversation(conversationId?: string): Promise<string> {
   if (conversationId) {
-    // Check if exists
     const existing = await db.select({ id: conversations.id }).from(conversations).where(eq(conversations.id, conversationId)).limit(1);
     if (existing.length > 0) {
       return existing[0].id;
     }
   }
-  // Create new
   const [newConv] = await db.insert(conversations).values({
-    title: "New Conversation", // Can update later based on first message if needed
+    title: "New Conversation",
   }).returning({ id: conversations.id });
   console.log(`🆕 [CHAT] New conversation started: ${newConv.id}`);
   return newConv.id;
@@ -31,9 +29,7 @@ async function loadHistory(conversationId: string): Promise<Array<{ role: "user"
     role: messages.role,
     content: messages.content,
   }).from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.timestamp);
-  
-  // Trim to last 20 for token limits
-  return history.slice(-20);
+  return history.slice(-20); // Trim to last 20 for token limits
 }
 
 // Helper: Save user and assistant messages
@@ -54,8 +50,9 @@ async function saveMessages(conversationId: string, userMessage: string, assista
 
 export async function generateChatResponse(
   userMessage: string,
-  conversationId?: string
-): Promise<{ response: string; conversationId: string }> { // Return object with required ID
+  conversationId?: string,
+  targetLanguage?: string // New optional parameter for explicit language
+): Promise<{ response: string; conversationId: string }> {
   const finalId = await getOrCreateConversation(conversationId);
 
   let history: Array<{ role: "user" | "assistant"; content: string }> = [];
@@ -72,7 +69,9 @@ export async function generateChatResponse(
     const relevantChunks = await searchSimilarChunks(userMessage, 15);
     
     if (relevantChunks.length === 0) {
-      fallbackResponse = "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
+      fallbackResponse = targetLanguage 
+        ? `I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded. (Responding in ${targetLanguage})`
+        : "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
       await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     }
@@ -94,10 +93,16 @@ export async function generateChatResponse(
 
     console.log(`📚 [CHAT] Context: ${relevantChunks.length} chunks, ${context.length} chars`);
 
+    // Updated system message with multilingual support
     const systemMessage = `You are the SOYOSOYO SACCO Assistant for SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD.
 
 CRITICAL INSTRUCTIONS:
-- Answer ONLY using the SOYOSOYO SACCO documents below
+- Answer ONLY using the SOYOSOYO SACCO documents below.
+- Multilingual: ${
+  targetLanguage 
+    ? `Respond in ${targetLanguage}. If the user's message is in another language, translate your response to ${targetLanguage}.`
+    : "Detect the user's input language and respond in the same language (e.g., Swahili for Swahili input, English for English input)."
+}
 - For financial questions (profit, revenue, income, expenses, earnings):
   * Search for: INCOME STATEMENT, BALANCE SHEET, RETAINED EARNINGS
   * Key terms: "TOTAL INCOME", "TOTAL EXPENSES", "RETAINED EARNINGS", "PROFIT"
@@ -114,7 +119,7 @@ MATH/FORMATTING RULES:
 RELEVANT SOYOSOYO SACCO DOCUMENTS:
 ${context}`;
 
-    // Build messages with history (minimal addition)
+    // Build messages with history
     const messagesForOpenAI = [
       { role: "system", content: systemMessage },
       ...history.map(msg => ({ role: msg.role, content: msg.content })),
@@ -143,21 +148,28 @@ ${context}`;
     const err = error instanceof Error ? error.message : "Unknown error";
     
     if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
-      fallbackResponse = "I'm experiencing high demand. Please try again in a moment.";
+      fallbackResponse = targetLanguage 
+        ? `I'm experiencing high demand. Please try again in a moment. (Responding in ${targetLanguage})`
+        : "I'm experiencing high demand. Please try again in a moment.";
       await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     } else if (err.includes('invalid_api_key')) {
-      fallbackResponse = "Configuration issue. Please contact support.";
+      fallbackResponse = targetLanguage	
+        ? `Configuration issue. Please contact support. (Responding in ${targetLanguage})`
+        : "Configuration issue. Please contact support.";
       await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     }
     
-    fallbackResponse = "I'm experiencing technical difficulties. Please try again.";
+    fallbackResponse = targetLanguage 
+      ? `I'm experiencing technical difficulties. Please try again. (Responding in ${targetLanguage})`
+      : "I'm experiencing technical difficulties. Please try again.";
     await saveMessages(finalId, userMessage, fallbackResponse);
     return { response: fallbackResponse, conversationId: finalId };
   }
 }
 
+// Rest of your file remains unchanged
 export async function analyzeFileContent(
   content: string,
   fileName: string,
@@ -169,7 +181,9 @@ export async function analyzeFileContent(
       messages: [
         {
           role: "system",
-          content: "Analyze file content and provide a brief summary for SACCO operations."
+          content: `Analyze file content and provide a brief summary for SACCO operations. ${
+            targetLanguage ? `Respond in ${targetLanguage}.` : "Use the same language as the input content if possible."
+          }`
         },
         {
           role: "user",
