@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 """
-SMART DOCUMENT UPLOADER v10 – RETRIEVAL-OPTIMIZED
-- Chunk size: 1200 + 300 overlap → preserves context
-- processed = TRUE only on success
-- Strict embedding validation
-- Same structure, 100% reliable
+SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION
+- Merged: Complete uploader + interactive RAG chatbot
+- Optimized: Batch embeddings, robust error handling, full schema
+- Chunking: 1200 chars + 300 overlap for max context
+- Hybrid search: Vector + keyword, bilingual responses
+- Ready to run: python3 app.py
+- Performance: Efficient SQL batches, validation, logging
 """
 
-import pandas as pd
-import psycopg
 import os
-import base64
+import re
 import json
 import glob
-import re
-import warnings
-from datetime import datetime
+import base64
+import psycopg
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+import pandas as pd
 import numpy as np
 from openai import OpenAI
+import warnings
 
 # ===================== CONFIG =====================
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -155,8 +157,7 @@ def extract_text(file_path: str) -> str:
     return ""
 
 # ===================== STRUCTURED EXTRACTORS =====================
-def extract_member_dividends(file_path: str, file_id: int, cur: psycopg.Cursor):
-    # ... (unchanged, good as-is)
+def extract_member_dividends(file_path: str, file_id: int, cur):
     ext = Path(file_path).suffix.lower()
     if ext not in {'.xlsx', '.xls', '.csv'}:
         return
@@ -202,8 +203,7 @@ def extract_member_dividends(file_path: str, file_id: int, cur: psycopg.Cursor):
     except Exception as e:
         print(f"   Member extraction failed: {e}")
 
-def extract_financial_lines(file_path: str, file_id: int, cur: psycopg.Cursor):
-    # ... (unchanged)
+def extract_financial_lines(file_path: str, file_id: int, cur):
     ext = Path(file_path).suffix.lower()
     if ext not in {'.xlsx', '.xls', '.csv'}:
         return
@@ -239,10 +239,119 @@ def extract_financial_lines(file_path: str, file_id: int, cur: psycopg.Cursor):
     except Exception as e:
         print(f"   Extract failed for {os.path.basename(file_path)}: {e}")
 
+# ===================== HYBRID SEARCH =====================
+def ask(question: str, cur, top_k: int = 5) -> str:
+    # Embed question
+    try:
+        emb = client.embeddings.create(input=question, model="text-embedding-ada-002").data[0].embedding
+        vec = '[' + ','.join(map(str, emb)) + ']'
+        kws = [f"%{w}%" for w in re.findall(r'\b\w+\b', question.lower()) if len(w)>2]
+
+        sql = """
+        WITH q AS (SELECT %s::vector AS vec),
+        vec_res AS (
+            SELECT dc.chunk_text, uf.original_name, 1 - (dc.embedding <=> (SELECT vec FROM q)) AS sim
+            FROM document_chunks dc JOIN uploaded_files uf ON dc.file_id = uf.id
+            WHERE uf.processed = true
+            ORDER BY dc.embedding <=> (SELECT vec FROM q) LIMIT %s
+        ),
+        kw_res AS (
+            SELECT dc.chunk_text, uf.original_name, 0.95 AS sim
+            FROM document_chunks dc JOIN uploaded_files uf ON dc.file_id = uf.id
+            WHERE uf.processed = true AND dc.chunk_text ILIKE ANY(%s)
+        )
+        (SELECT chunk_text, original_name, sim FROM vec_res WHERE sim > 0.6)
+        UNION ALL (SELECT chunk_text, original_name, sim FROM kw_res)
+        ORDER BY sim DESC LIMIT %s;
+        """
+        cur.execute(sql, (vec, top_k*2, kws, top_k))
+        results = cur.fetchall()
+        if not results:
+            return "I don't have that information in the SACCO documents."
+
+        context = "\n\n".join([f"[{r[2]:.3f}] {r[1]}:\n{r[0]}" for r in results])
+        prompt = f"""You are a SOYOSOYO SACCO assistant. Use only the context below.
+
+Context:
+{context}
+
+Question: {question}
+Answer in Swahili or English, short and clear:"""
+
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Query error: {e}")
+        return "Sorry, there was an error processing your question."
+
 # ===================== MAIN =====================
 def main():
-    print("SMART UPLOADER v10 – RETRIEVAL-OPTIMIZED")
+    print("SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION")
 
+    conn = psycopg.connect(DATABASE_URL)
+    cur = conn.cursor()
+
+    # STEP 1: ENSURE SCHEMA
+    cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS uploaded_files (
+            id SERIAL PRIMARY KEY,
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL UNIQUE,
+            mime_type TEXT,
+            size BIGINT,
+            extracted_text TEXT,
+            metadata JSONB,
+            content TEXT,  -- base64 encoded
+            processed BOOLEAN DEFAULT FALSE,
+            uploaded_at TIMESTAMP DEFAULT NOW(),
+            embedding VECTOR(1536)
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS document_chunks (
+            id SERIAL PRIMARY KEY,
+            file_id INTEGER REFERENCES uploaded_files(id) ON DELETE CASCADE,
+            chunk_text TEXT NOT NULL,
+            chunk_index INTEGER,
+            embedding VECTOR(1536)
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS member_dividends (
+            id SERIAL PRIMARY KEY,
+            file_id INTEGER REFERENCES uploaded_files(id) ON DELETE CASCADE,
+            name TEXT,
+            member_id TEXT,
+            shares INTEGER DEFAULT 0,
+            dividends DECIMAL(10,2) DEFAULT 0,
+            qualification TEXT,
+            payout_date DATE
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS financial_report_lines (
+            id SERIAL PRIMARY KEY,
+            file_id INTEGER REFERENCES uploaded_files(id) ON DELETE CASCADE,
+            account TEXT,
+            line_type TEXT,
+            amount DECIMAL(15,2) DEFAULT 0,
+            line_date DATE
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_files_processed ON uploaded_files (processed);
+        CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+        CREATE INDEX IF NOT EXISTS idx_chunks_file ON document_chunks (file_id);
+    """)
+    conn.commit()
+    print("Schema ready")
+
+    # STEP 2: UPLOAD LOGIC
     files = []
     for d in SCAN_DIRECTORIES:
         if not os.path.exists(d):
@@ -252,20 +361,14 @@ def main():
 
     if not files:
         print("No files found.")
-        return
+    else:
+        classified = [classify_and_date_file(f) for f in files]
+        monthly_files = [f for f in classified if f["is_monthly"]]
+        static_files = [f for f in classified if not f["is_monthly"]]
 
-    classified = [classify_and_date_file(f) for f in files]
-    monthly_files = [f for f in classified if f["is_monthly"]]
-    static_files = [f for f in classified if not f["is_monthly"]]
+        print(f"Found {len(monthly_files)} monthly, {len(static_files)} static files")
 
-    print(f"Found {len(monthly_files)} monthly, {len(static_files)} static files")
-
-    conn = psycopg.connect(DATABASE_URL)
-    cur = conn.cursor()
-
-    try:
-        # ... (monthly cleanup unchanged) ...
-
+        # Monthly cleanup: Keep latest by type
         latest_by_type = {}
         for mf in monthly_files:
             key = mf["type"]
@@ -282,6 +385,7 @@ def main():
             for (name,) in cur.fetchall():
                 print(f"   Removed: {name}")
 
+        # Check existing processed files
         cur.execute("SELECT original_name FROM uploaded_files WHERE processed = true")
         existing = {row[0] for row in cur.fetchall()}
 
@@ -320,14 +424,14 @@ def main():
                 # INSERT FILE (processed = FALSE)
                 cur.execute("""
                     INSERT INTO uploaded_files
-                    (filename, original_name, mime_type, size, extracted_text, metadata, content, processed, uploaded_at, embedding)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, NOW(), %s)
+                    (filename, original_name, mime_type, size, extracted_text, metadata, content, embedding)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     file_info["filename"], file_info["filename"], mime,
                     os.path.getsize(path),
-                    "Structured data in member_dividends / financial_report_lines",
-                    json.dumps({"file_type": file_info["type"], "upload_method": "v10"}),
+                    text,  # Full extracted text here for reference
+                    json.dumps({"file_type": file_info["type"], "upload_method": "v11"}),
                     content, summary_emb
                 ))
                 file_id = cur.fetchone()[0]
@@ -355,13 +459,14 @@ def main():
                 cur.execute("UPDATE uploaded_files SET processed = TRUE WHERE id = %s", (file_id,))
                 print(f"   Success: {valid_chunks} chunks")
 
+                conn.commit()  # Commit per file for safety
+
             except Exception as e:
                 print(f"   Failed: {e}")
                 conn.rollback()
                 continue
 
-        # ... (disk cleanup unchanged) ...
-
+        # Disk cleanup
         if DELETE_OLD_FROM_DISK and old_names:
             for mf in monthly_files:
                 if mf["filename"] in old_names:
@@ -371,8 +476,7 @@ def main():
                     except:
                         pass
 
-        conn.commit()
-
+        # Test queries
         print("\nTEST QUERIES")
         cur.execute("SELECT name, dividends, qualification FROM member_dividends ORDER BY id DESC LIMIT 3")
         print("Latest 3 members:")
@@ -384,14 +488,17 @@ def main():
         for r in cur.fetchall():
             print(f"   → {r[0]} | Amt: {r[1]} | {r[2]}")
 
-        print("\nUPLOAD COMPLETE – CHATBOT READY")
+        print("\nUPLOAD COMPLETE")
 
-    except Exception as e:
-        print(f"Error: {e}")
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
+    # STEP 3: INTERACTIVE CHATBOT
+    print("\nCHATBOT READY. Type 'quit' to exit.")
+    while True:
+        q = input("\nYou: ").strip()
+        if q.lower() in {'quit','exit'}: break
+        print("Bot:", ask(q, cur))
+
+    cur.close()
+    conn.close()
 
 if __name__ == "__main__":
     main()
