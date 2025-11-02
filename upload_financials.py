@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 SMART DOCUMENT UPLOADER v5 - FULLY AUTOMATIC
-- Auto-detects monthly files by date in filename (robust)
+- Auto-detects monthly files by date in filename
 - Keeps only the LATEST monthly file per category
-- Deletes old monthly files from DB and optionally disk
-- Static files: upload once, skip forever
+- Deletes old from DB + disk
+- Static files: upload once
 """
 
 import pandas as pd
@@ -24,8 +24,16 @@ from openai import OpenAI
 DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SCAN_DIRECTORIES = ["financials/", "uploads/"]
-DELETE_OLD_FROM_DISK = True  # Set False if you want to keep files locally
+DELETE_OLD_FROM_DISK = True
 SUPPORTED_EXTENSIONS = {'.xlsx', '.xls', '.pdf', '.txt', '.csv'}
+
+SUPPORTED_MIME = {
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xls': 'application/vnd.ms-excel',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.csv': 'text/csv'
+}
 
 if not DATABASE_URL or not OPENAI_API_KEY:
     raise ValueError("Missing DATABASE_URL or OPENAI_API_KEY")
@@ -41,10 +49,8 @@ MONTH_MAP = {
 }
 
 def parse_date_from_filename(filename: str) -> Optional[datetime]:
-    """Extract date from filename like 28 SEP 2025, Sept_2025, 2025-09, Q3_2025."""
     text = filename.lower().replace('_', ' ').replace('-', ' ')
-
-    # Pattern 1: Optional day + Month Year (e.g., 28 sep 2025)
+    # Pattern 1: [Day] Month Year
     m = re.search(r'\b(?:\d{1,2}\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|'
                   r'january|february|march|april|may|june|july|august|september|october|november|december)'
                   r'\s+(\d{4})\b', text)
@@ -55,7 +61,7 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
             return datetime(int(year), month, 1)
 
     # Pattern 2: YYYY-MM
-    m = re.search(r'\b(\d{4})[._-]?(\d{2})\b', text)
+    m = re.search(r'\b(\d{4})[._-](\d{2})\b', text)
     if m:
         year, month = m.groups()
         try:
@@ -72,12 +78,12 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
 
     return None
 
-# ===================== FILE CLASSIFIER =====================
+# ===================== CLASSIFIER =====================
 def classify_and_date_file(file_path: str) -> Dict[str, Any]:
     filename = os.path.basename(file_path)
     file_type = "sacco_document"
-
     lower = filename.lower()
+
     if any(k in lower for k in ['financial', 'budget', 'income', 'expense']):
         file_type = "financial_report"
     elif any(k in lower for k in ['member', 'dividend', 'payout']):
@@ -87,18 +93,15 @@ def classify_and_date_file(file_path: str) -> Dict[str, Any]:
     elif any(k in lower for k in ['bylaw', 'policy', 'constitution']):
         file_type = "policy_document"
 
-    parsed_date = parse_date_from_filename(filename)
-    is_monthly = parsed_date is not None
-
     return {
         "path": file_path,
         "filename": filename,
         "type": file_type,
-        "date": parsed_date,
-        "is_monthly": is_monthly
+        "date": parse_date_from_filename(filename),
+        "is_monthly": parse_date_from_filename(filename) is not None
     }
 
-# ===================== CORE FUNCTIONS =====================
+# ===================== CORE =====================
 def chunk_text(text: str, max_chunk_size: int = 500, overlap: int = 50) -> List[str]:
     words = text.split()
     chunks = []
@@ -130,31 +133,30 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
 
 def extract_text(file_path: str) -> str:
     ext = Path(file_path).suffix.lower()
-    if ext in ['.xlsx', '.xls']:
-        dfs = pd.read_excel(file_path, sheet_name=None, engine='openpyxl')
-        lines = [f"File: {os.path.basename(file_path)}"]
-        for sheet, df in dfs.items():
-            lines.append(f"\n--- {sheet} ---\n{df.to_string(index=False)}")
-        return "\n".join(lines)
-    elif ext == '.pdf':
-        try:
+    try:
+        if ext in ['.xlsx', '.xls']:
+            dfs = pd.read_excel(file_path, sheet_name=None, engine='openpyxl')
+            lines = [f"File: {os.path.basename(file_path)}"]
+            for sheet, df in dfs.items():
+                lines.append(f"\n--- {sheet} ---\n{df.to_string(index=False)}")
+            return "\n".join(lines)
+        elif ext == '.pdf':
             import pdfplumber
             with pdfplumber.open(file_path) as pdf:
                 return "".join(p.extract_text() or "" for p in pdf.pages)
-        except:
-            return "PDF text extraction failed"
-    elif ext == '.csv':
-        return pd.read_csv(file_path).to_string(index=False)
-    elif ext == '.txt':
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
-    return ""
+        elif ext == '.csv':
+            return pd.read_csv(file_path).to_string(index=False)
+        elif ext == '.txt':
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                return f.read()
+    except Exception as e:
+        print(f"Text extraction failed: {e}")
+    return "Text extraction failed"
 
 # ===================== MAIN =====================
 def main():
     print("SMART UPLOADER v5 - FULLY AUTOMATIC MONTHLY REFRESH")
 
-    # Find all files
     files = []
     for dir_path in SCAN_DIRECTORIES:
         if not os.path.exists(dir_path):
@@ -166,59 +168,43 @@ def main():
         print("No files found.")
         return
 
-    # Classify all files
     classified = [classify_and_date_file(f) for f in files]
     monthly_files = [f for f in classified if f["is_monthly"]]
     static_files = [f for f in classified if not f["is_monthly"]]
 
-    print(f"Found {len(monthly_files)} monthly files, {len(static_files)} static files")
+    print(f"Found {len(monthly_files)} monthly, {len(static_files)} static files")
 
     conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
 
     try:
-        # === 1. DELETE OLD MONTHLY FILES ===
-        old_names = []
+        # === 1. FIND LATEST MONTHLY PER TYPE ===
         latest_by_type = {}
-
         for mf in monthly_files:
             key = mf["type"]
-            # Keep the latest by normalized month
             if key not in latest_by_type or mf["date"] > latest_by_type[key]["date"]:
                 latest_by_type[key] = mf
 
-        # Determine which files are old
-        for mf in monthly_files:
-            if latest_by_type[mf["type"]]["path"] != mf["path"]:
-                old_names.append(mf["filename"])
+        old_names = [mf["filename"] for mf in monthly_files
+                     if latest_by_type.get(mf["type"])["path"] != mf["path"]]
 
+        # === 2. DELETE OLD FROM DB ===
         if old_names:
             print(f"Deleting {len(old_names)} old monthly files from DB...")
-            cur.execute("""
-                DELETE FROM document_chunks WHERE file_id IN (
-                    SELECT id FROM uploaded_files WHERE original_name = ANY(%s)
-                )
-            """, (old_names,))
-            cur.execute("""
-                DELETE FROM uploaded_files WHERE original_name = ANY(%s) RETURNING original_name
-            """, (old_names,))
-            deleted = cur.fetchall()
-            for (name,) in deleted:
-                print(f"   Removed old: {name}")
+            cur.execute("DELETE FROM document_chunks WHERE file_id IN (SELECT id FROM uploaded_files WHERE original_name = ANY(%s))", (old_names,))
+            cur.execute("DELETE FROM uploaded_files WHERE original_name = ANY(%s) RETURNING original_name", (old_names,))
+            for (name,) in cur.fetchall():
+                print(f"   Removed: {name}")
 
-        # === 2. GET EXISTING STATIC FILES ===
+        # === 3. GET EXISTING ===
         cur.execute("SELECT original_name FROM uploaded_files WHERE processed = true")
         existing = {row[0] for row in cur.fetchall()}
 
-        # === 3. UPLOAD NEW FILES ===
+        # === 4. UPLOAD NEW ===
         to_upload = []
-
-        # Latest monthly files
         for mf in latest_by_type.values():
             if mf["filename"] not in existing:
                 to_upload.append(mf["path"])
-
-        # Static files not in DB
         for sf in static_files:
             if sf["filename"] not in existing:
                 to_upload.append(sf["path"])
@@ -235,11 +221,8 @@ def main():
             with open(path, 'rb') as f:
                 content = base64.b64encode(f.read()).decode()
 
-            metadata = json.dumps({
-                "file_type": classify_and_date_file(path)["type"],
-                "upload_method": "smart_uploader_v5",
-                "processed_date": datetime.now().isoformat()
-            })
+            file_info = classify_and_date_file(path)
+            mime = SUPPORTED_MIME.get(Path(path).suffix.lower(), 'application/octet-stream')
 
             cur.execute("""
                 INSERT INTO uploaded_files
@@ -247,9 +230,10 @@ def main():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, NOW(), %s)
                 RETURNING id
             """, (
-                os.path.basename(path), os.path.basename(path),
-                'application/octet-stream',
-                os.path.getsize(path), text, metadata, content, summary_emb
+                file_info["filename"], file_info["filename"], mime,
+                os.path.getsize(path), text,
+                json.dumps({"file_type": file_info["type"], "upload_method": "v5", "date": datetime.now().isoformat()}),
+                content, summary_emb
             ))
             file_id = cur.fetchone()[0]
 
@@ -260,8 +244,8 @@ def main():
                         VALUES (%s, %s, %s, %s)
                     """, (file_id, chunk, i, emb))
 
-        # === 4. DELETE OLD FILES FROM DISK ===
-        if DELETE_OLD_FROM_DISK:
+        # === 5. DELETE OLD FROM DISK ===
+        if DELETE_OLD_FROM_DISK and old_names:
             for mf in monthly_files:
                 if mf["filename"] in old_names:
                     try:
@@ -271,7 +255,7 @@ def main():
                         pass
 
         conn.commit()
-        print(f"\nUPLOAD COMPLETE! {len(to_upload)} new, {len(old_names)} old removed.")
+        print(f"\nUPLOAD COMPLETE! {len(to_upload)} uploaded, {len(old_names)} removed.")
 
     except Exception as e:
         print(f"Error: {e}")
