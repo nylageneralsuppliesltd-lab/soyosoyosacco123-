@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-SOYOSOYO SACCO CHATBOT + UPLOADER v12 – FERRARI EDITION (ENHANCED RETRIEVAL)
+SOYOSOYO SACCO CHATBOT + UPLOADER v13 – FERRARI EDITION (ROBUST EXTRACTION)
 - Merged: Complete uploader + interactive RAG chatbot
-- NEW: Structured queries for member lists, dividends – fixes incomplete listings
-- Optimized: Higher top_k=10, lower sim=0.5, "comprehensive" prompt
+- FIXED: Skip non-numeric rows in dividends; better column matching for financials
+- FIXED: PDF validation before extraction; ignore invalid files
+- FIXED: Deployment-safe: Skip interactive if non-TTY (e.g., Render)
+- NEW: Log skipped rows; improved error handling in extractors
 - Chunking: 1200 chars + 300 overlap for max context
 - Hybrid search: Vector + keyword, bilingual responses
 - Ready to run: python3 app.py
 - Performance: Efficient SQL batches, validation, logging
-- FIXED: Full info display via DB queries on structured data
 """
 
 import os
@@ -24,6 +25,7 @@ import pandas as pd
 import numpy as np
 from openai import OpenAI
 import warnings
+import sys
 
 # ===================== CONFIG =====================
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -135,6 +137,15 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
     valid = [e for e in embs if e and len(e) == 1536]
     return np.mean(valid, axis=0).tolist() if valid else []
 
+def is_valid_pdf(file_path: str) -> bool:
+    """Quick check if file is a valid PDF"""
+    try:
+        with open(file_path, 'rb') as f:
+            header = f.read(8)
+            return header.startswith(b'%PDF-')
+    except:
+        return False
+
 def extract_text(file_path: str) -> str:
     ext = Path(file_path).suffix.lower()
     try:
@@ -145,6 +156,9 @@ def extract_text(file_path: str) -> str:
                 lines.append(f"\n--- {sheet} ---\n{df.to_string(index=False)}")
             return re.sub(r'\s+', ' ', "\n".join(lines))
         elif ext == '.pdf':
+            if not is_valid_pdf(file_path):
+                print(f"Invalid PDF: {file_path} - skipping extraction")
+                return ""
             import pdfplumber
             with pdfplumber.open(file_path) as pdf:
                 text = "".join(p.extract_text() or "" for p in pdf.pages)
@@ -158,7 +172,16 @@ def extract_text(file_path: str) -> str:
         print(f"Text extraction failed: {e}")
     return ""
 
-# ===================== STRUCTURED EXTRACTORS =====================
+# ===================== STRUCTURED EXTRACTORS (ROBUST) =====================
+def safe_float(val):
+    """Safely convert to float, return 0 on failure"""
+    if pd.isna(val):
+        return 0.0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
 def extract_member_dividends(file_path: str, file_id: int, cur):
     ext = Path(file_path).suffix.lower()
     if ext not in {'.xlsx', '.xls', '.csv'}:
@@ -166,6 +189,7 @@ def extract_member_dividends(file_path: str, file_id: int, cur):
     try:
         df = pd.read_excel(file_path, engine='openpyxl') if ext in {'.xlsx', '.xls'} else pd.read_csv(file_path)
         if df.empty:
+            print(f"   Empty DataFrame - skipping")
             return
         df.columns = [str(c).strip().lower().replace(' ', '_').replace('#', 'num') for c in df.columns]
         print(f"   Member columns: {list(df.columns)}")
@@ -173,35 +197,48 @@ def extract_member_dividends(file_path: str, file_id: int, cur):
         col_name = next((c for c in df.columns if 'name' in c), None)
         col_id   = next((c for c in df.columns if any(x in c for x in ['member', 'id', 'num'])), None)
         col_shares = next((c for c in df.columns if any(x in c for x in ['share', 'contrib'])), None)
-        col_div = next((c for c in df.columns if any(x in c for x in ['dividend', 'paid', 'payout'])), None)
-        col_qual = next((c for c in df.columns if any(x in c for x in ['qualif', 'status', 'remark'])), None)
+        col_div_candidates = [c for c in df.columns if any(x in c for x in ['dividend', 'paid', 'payout'])]
+        col_div = col_div_candidates[0] if col_div_candidates else None
+        col_qual = next((c for c in df.columns if any(x in c for x in ['qualif', 'status', 'remark', 'qualification'])), None)
+
+        if not col_name:
+            print(f"   No 'name' column found - skipping structured extraction")
+            return
 
         payout_date = parse_date_from_filename(os.path.basename(file_path))
         if payout_date:
             payout_date = payout_date.date()
 
         inserted = 0
-        for _, row in df.iterrows():
-            dividends = round(float(row[col_div] or 0)) if col_div and pd.notna(row[col_div]) else 0
-            shares = round(float(row[col_shares] or 0)) if col_shares and pd.notna(row[col_shares]) else 0
+        skipped = 0
+        for idx, row in df.iterrows():
+            try:
+                name = str(row[col_name]).strip() if col_name else None
+                if not name or name.lower() in ['nan', 'none', '']:
+                    skipped += 1
+                    continue
 
-            cur.execute("""
-                INSERT INTO member_dividends
-                (file_id, name, member_id, shares, dividends, qualification, payout_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                file_id,
-                str(row[col_name]).strip() if col_name else None,
-                str(row[col_id]).strip() if col_id else None,
-                shares,
-                dividends,
-                str(row[col_qual]).strip() if col_qual else None,
-                payout_date
-            ))
-            inserted += 1
-            if inserted <= 3:
-                print(f"   Member row {inserted}: {row[col_name] if col_name else ''} | Div: {dividends}")
-        print(f"   Inserted {inserted} member-dividend rows")
+                member_id = str(row[col_id]).strip() if col_id else None
+                shares = round(safe_float(row[col_shares])) if col_shares else 0
+                dividends = round(safe_float(row[col_div])) if col_div else 0
+                qualification = str(row[col_qual]).strip() if col_qual else None
+
+                cur.execute("""
+                    INSERT INTO member_dividends
+                    (file_id, name, member_id, shares, dividends, qualification, payout_date)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    file_id, name, member_id, shares, dividends, qualification, payout_date
+                ))
+                inserted += 1
+                if inserted <= 3:
+                    print(f"   Member row {inserted}: {name} | Shares: {shares} | Div: {dividends} | Qual: {qualification[:50]}...")
+            except Exception as row_e:
+                print(f"   Skipped row {idx}: {row_e}")
+                skipped += 1
+                continue
+
+        print(f"   Inserted {inserted} member-dividend rows (skipped {skipped} invalid rows)")
     except Exception as e:
         print(f"   Member extraction failed: {e}")
 
@@ -210,36 +247,78 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
     if ext not in {'.xlsx', '.xls', '.csv'}:
         return
     try:
-        df = pd.read_excel(file_path, engine='openpyxl') if ext in {'.xlsx', '.xls'} else pd.read_csv(file_path)
-        if df.empty:
-            print(f"   File {os.path.basename(file_path)} is empty!")
+        df = pd.read_excel(file_path, sheet_name=None, engine='openpyxl') if ext in {'.xlsx', '.xls'} else {'Sheet1': pd.read_csv(file_path)}
+        if not df:
+            print(f"   No sheets/DataFrame - skipping")
             return
-        df.columns = [str(c).strip().lower().replace(' ', '_').replace('#', 'num') for c in df.columns]
-        print(f"   Financial columns detected: {list(df.columns)}")
 
-        col_account = next((c for c in df.columns if 'account' in c or 'line' in c), None)
-        col_amount  = next((c for c in df.columns if 'amount' in c or 'value' in c or 'total' in c), None)
-        col_type    = next((c for c in df.columns if 'type' in c or 'category' in c), None)
-        col_date    = next((c for c in df.columns if 'date' in c), None)
+        # Process each sheet
+        total_inserted = 0
+        for sheet_name, sheet_df in df.items():
+            if sheet_df.empty:
+                continue
+            sheet_df.columns = [str(c).strip().lower().replace(' ', '_').replace('#', 'num') for c in sheet_df.columns]
+            print(f"   Financial sheet '{sheet_name}' columns: {list(sheet_df.columns)}")
 
-        inserted = 0
-        for _, row in df.iterrows():
-            account   = str(row[col_account]).strip() if col_account else None
-            amount    = round(float(row[col_amount])) if col_amount and pd.notna(row[col_amount]) else 0
-            line_type = str(row[col_type]).strip() if col_type else None
-            line_date = pd.to_datetime(row[col_date]).date() if col_date and pd.notna(row[col_date]) else None
+            # Better column detection: Find likely account/description (text-heavy), amount (numeric)
+            potential_accounts = [c for c in sheet_df.columns if any(k in c for k in ['account', 'line', 'description', 'item'])]
+            col_account = potential_accounts[0] if potential_accounts else next((c for c in sheet_df.columns if sheet_df[c].dtype == 'object'), None)
 
-            cur.execute("""
-                INSERT INTO financial_report_lines
-                (file_id, account, line_type, amount, line_date)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (file_id, account, line_type, amount, line_date))
-            inserted += 1
-            if inserted <= 3:
-                print(f"   Financial row {inserted}: Account={account}, Type={line_type}, Amount={amount}")
-        print(f"   Inserted {inserted} financial rows")
+            potential_types = [c for c in sheet_df.columns if any(k in c for k in ['type', 'category'])]
+            col_type = potential_types[0] if potential_types else None
+
+            potential_dates = [c for c in sheet_df.columns if 'date' in c]
+            col_date = potential_dates[0] if potential_dates else None
+
+            # Find numeric columns for amount (sum abs > threshold to detect)
+            numeric_cols = [c for c in sheet_df.columns if pd.api.types.is_numeric_dtype(sheet_df[c])]
+            col_amount = None
+            if numeric_cols:
+                # Pick the one with highest variance or sum (likely the main amount col)
+                col_amount = max(numeric_cols, key=lambda c: abs(sheet_df[c].sum()) or 0)
+
+            if not col_account and not col_amount:
+                print(f"   No suitable account/amount columns in '{sheet_name}' - skipping sheet")
+                continue
+
+            print(f"   Using: Account={col_account}, Amount={col_amount}, Type={col_type}, Date={col_date}")
+
+            inserted = 0
+            skipped = 0
+            for idx, row in sheet_df.iterrows():
+                try:
+                    account = str(row[col_account]).strip() if col_account and pd.notna(row[col_account]) else None
+                    if not account or account.lower() in ['nan', 'none', '', 'total', 'grand total']:  # Skip totals/summary
+                        skipped += 1
+                        continue
+
+                    amount = round(safe_float(row[col_amount])) if col_amount else 0
+                    if amount == 0:  # Skip zero-amount rows if possible
+                        skipped += 1
+                        continue
+
+                    line_type = str(row[col_type]).strip() if col_type and pd.notna(row[col_type]) else None
+                    line_date = pd.to_datetime(row[col_date]).date() if col_date and pd.notna(row[col_date]) else None
+
+                    cur.execute("""
+                        INSERT INTO financial_report_lines
+                        (file_id, account, line_type, amount, line_date)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (file_id, account, line_type, amount, line_date))
+                    inserted += 1
+                    if inserted <= 3:
+                        print(f"   Financial row {inserted} ({sheet_name}): Account={account[:30]}..., Type={line_type}, Amount={amount}")
+                except Exception as row_e:
+                    print(f"   Skipped financial row {idx} ({sheet_name}): {row_e}")
+                    skipped += 1
+                    continue
+
+            print(f"   Sheet '{sheet_name}': Inserted {inserted} rows (skipped {skipped})")
+            total_inserted += inserted
+
+        print(f"   Total inserted {total_inserted} financial rows across sheets")
     except Exception as e:
-        print(f"   Extract failed for {os.path.basename(file_path)}: {e}")
+        print(f"   Financial extraction failed: {e}")
 
 # ===================== ENHANCED HYBRID SEARCH WITH STRUCTURED QUERIES =====================
 def get_structured_context(question: str, cur) -> str:
@@ -284,7 +363,7 @@ def get_structured_context(question: str, cur) -> str:
         cur.execute("""
             SELECT account, line_type, amount, line_date
             FROM financial_report_lines frl JOIN uploaded_files uf ON frl.file_id = uf.id
-            WHERE uf.processed = true
+            WHERE uf.processed = true AND account IS NOT NULL AND amount != 0
             ORDER BY line_date DESC, amount DESC LIMIT 10
         """)
         lines = cur.fetchall()
@@ -356,7 +435,7 @@ Answer in Swahili or English, comprehensive and detailed, list all relevant info
 
 # ===================== MAIN =====================
 def main():
-    print("SOYOSOYO SACCO CHATBOT + UPLOADER v12 – FERRARI EDITION (ENHANCED RETRIEVAL)")
+    print("SOYOSOYO SACCO CHATBOT + UPLOADER v13 – FERRARI EDITION (ROBUST EXTRACTION)")
 
     conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
@@ -426,7 +505,7 @@ def main():
     conn.commit()
     print("Schema ready (freshly recreated)")
 
-    # STEP 2: UPLOAD LOGIC (unchanged)
+    # STEP 2: UPLOAD LOGIC
     files = []
     for d in SCAN_DIRECTORIES:
         if not os.path.exists(d):
@@ -506,7 +585,7 @@ def main():
                     file_info["filename"], file_info["filename"], mime,
                     os.path.getsize(path),
                     text,  # Full extracted text here for reference
-                    json.dumps({"file_type": file_info["type"], "upload_method": "v12"}),
+                    json.dumps({"file_type": file_info["type"], "upload_method": "v13"}),
                     content, summary_emb
                 ))
                 file_id = cur.fetchone()[0]
@@ -551,26 +630,51 @@ def main():
                     except:
                         pass
 
-        # Test queries
+        # Test queries (improved to filter None/0)
         print("\nTEST QUERIES")
-        cur.execute("SELECT name, dividends, qualification FROM member_dividends ORDER BY id DESC LIMIT 3")
+        cur.execute("""
+            SELECT name, shares, dividends, qualification 
+            FROM member_dividends 
+            WHERE name IS NOT NULL AND shares > 0 
+            ORDER BY id DESC LIMIT 3
+        """)
         print("Latest 3 members:")
-        for r in cur.fetchall():
-            print(f"   → {r[0]} | Div: {r[1]} | {r[2]}")
+        members = cur.fetchall()
+        if members:
+            for r in members:
+                print(f"   → {r[0]} | Shares: {r[1]} | Div: {r[2]} | {r[3]}")
+        else:
+            print("   No valid members found")
 
-        cur.execute("SELECT account, amount, line_type FROM financial_report_lines ORDER BY id DESC LIMIT 3")
+        cur.execute("""
+            SELECT account, line_type, amount 
+            FROM financial_report_lines 
+            WHERE account IS NOT NULL AND amount != 0 
+            ORDER BY id DESC LIMIT 3
+        """)
         print("Latest 3 financial lines:")
-        for r in cur.fetchall():
-            print(f"   → {r[0]} | Amt: {r[1]} | {r[2]}")
+        lines = cur.fetchall()
+        if lines:
+            for r in lines:
+                print(f"   → {r[0]} | Type: {r[1]} | Amt: {r[2]}")
+        else:
+            print("   No valid financial lines found")
 
         print("\nUPLOAD COMPLETE")
 
-    # STEP 3: INTERACTIVE CHATBOT
-    print("\nCHATBOT READY. Type 'quit' to exit.")
-    while True:
-        q = input("\nYou: ").strip()
-        if q.lower() in {'quit','exit'}: break
-        print("Bot:", ask(q, cur))
+    # STEP 3: INTERACTIVE CHATBOT (SKIP IF NON-INTERACTIVE ENV)
+    if sys.stdin.isatty():  # Check if interactive (not in Render/CI)
+        print("\nCHATBOT READY. Type 'quit' to exit.")
+        while True:
+            try:
+                q = input("\nYou: ").strip()
+                if q.lower() in {'quit','exit'}: break
+                print("Bot:", ask(q, cur))
+            except EOFError:
+                print("\nExiting chatbot (non-interactive mode).")
+                break
+    else:
+        print("\nNon-interactive mode (e.g., deployment) - skipping chatbot loop.")
 
     cur.close()
     conn.close()
