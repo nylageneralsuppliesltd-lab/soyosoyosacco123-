@@ -1,208 +1,233 @@
 import OpenAI from "openai";
 import { searchSimilarChunks } from "./vectorSearch.js";
-import { eq, desc } from "drizzle-orm";
-import { conversations, messages } from "../../shared/schema.js"; // Adjust path to match your schema location from routes
-import { db } from "../db.js"; // Import from your DB setup (index.js exports)
+import { eq, desc, isNotNull } from "drizzle-orm";
+import { conversations, messages, uploadedFiles } from "../../shared/schema.js";
+import { db } from "../db.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
 
-// Helper: Get or create conversation ID
-async function getOrCreateConversation(conversationId?: string): Promise<string> {
+/* -------------------------------------------------------------------------- */
+/* 🗂️ Conversation management helpers                                         */
+/* -------------------------------------------------------------------------- */
+
+async function getOrCreateConversation(conversationId) {
   if (conversationId) {
-    const existing = await db.select({ id: conversations.id }).from(conversations).where(eq(conversations.id, conversationId)).limit(1);
-    if (existing.length > 0) {
-      return existing[0].id;
-    }
+    const existing = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+
+    if (existing.length > 0) return existing[0].id;
   }
-  const [newConv] = await db.insert(conversations).values({
-    title: "New Conversation",
-  }).returning({ id: conversations.id });
+
+  const [newConv] = await db
+    .insert(conversations)
+    .values({ title: "New Conversation" })
+    .returning({ id: conversations.id });
+
   console.log(`🆕 [CHAT] New conversation started: ${newConv.id}`);
   return newConv.id;
 }
 
-// Helper: Load history messages
-async function loadHistory(conversationId: string): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
-  const history = await db.select({
-    role: messages.role,
-    content: messages.content,
-  }).from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.timestamp);
-  return history.slice(-20); // Trim to last 20 for token limits
+async function loadHistory(conversationId) {
+  const history = await db
+    .select({ role: messages.role, content: messages.content })
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(messages.timestamp);
+
+  return history.slice(-20);
 }
 
-// Helper: Save user and assistant messages
-async function saveMessages(conversationId: string, userMessage: string, assistantResponse: string): Promise<void> {
+async function saveMessages(conversationId, userMessage, assistantResponse) {
   await db.insert(messages).values([
-    {
-      conversationId,
-      content: userMessage,
-      role: "user",
-    },
-    {
-      conversationId,
-      content: assistantResponse,
-      role: "assistant",
-    },
+    { conversationId, content: userMessage, role: "user" },
+    { conversationId, content: assistantResponse, role: "assistant" },
   ]);
 }
 
+/* -------------------------------------------------------------------------- */
+/* 💬 Core Chat Function                                                      */
+/* -------------------------------------------------------------------------- */
+
 export async function generateChatResponse(
-  userMessage: string,
-  conversationId?: string,
-  targetLanguage?: string // New optional parameter for explicit language
-): Promise<{ response: string; conversationId: string }> {
+  userMessage,
+  conversationId,
+  targetLanguage
+) {
   const finalId = await getOrCreateConversation(conversationId);
 
-  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
-  let fallbackResponse: string | undefined;
+  let history = [];
+  let fallbackResponse;
 
   try {
     console.log(`🤖 [CHAT] Processing: "${userMessage.slice(0, 100)}..."`);
-
-    // Load history
     history = await loadHistory(finalId);
-    console.log(`📜 [CHAT] Loaded ${history.length} messages from history`);
 
-    // Use vector search to find most relevant chunks
+    // === VECTOR SEARCH ===
     const relevantChunks = await searchSimilarChunks(userMessage, 15);
-    
     if (relevantChunks.length === 0) {
-      fallbackResponse = targetLanguage 
-        ? `I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded. (Responding in ${targetLanguage})`
-        : "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference. Please ensure documents are uploaded.";
+      const msg =
+        "I'm sorry, but I don't have any SOYOSOYO SACCO documents to reference.";
+      fallbackResponse = targetLanguage
+        ? `${msg} (Responding in ${targetLanguage})`
+        : msg;
       await saveMessages(finalId, userMessage, fallbackResponse);
       return { response: fallbackResponse, conversationId: finalId };
     }
 
-    // Prioritize financial documents
+    // === PRIORITIZE FINANCIAL FILES ===
     const sortedChunks = relevantChunks.sort((a, b) => {
-      const aIsFinancial = a.filename.toLowerCase().includes('financial');
-      const bIsFinancial = b.filename.toLowerCase().includes('financial');
+      const aIsFinancial = a.filename.toLowerCase().includes("financial");
+      const bIsFinancial = b.filename.toLowerCase().includes("financial");
       if (aIsFinancial && !bIsFinancial) return -1;
       if (!aIsFinancial && bIsFinancial) return 1;
       return b.similarity - a.similarity;
     });
 
-    // Build context from top chunks
+    // === BUILD CONTEXT ===
     const context = sortedChunks
-      .slice(0, 15)
-      .map((chunk, i) => `[${chunk.filename}]\n${chunk.text}`)
+      .map(
+        (chunk) =>
+          `📄 **${chunk.filename}** (Similarity: ${(chunk.similarity * 100).toFixed(
+            1
+          )}%)\n${chunk.text.substring(0, 1800)}`
+      )
       .join("\n\n---\n\n");
 
-    console.log(`📚 [CHAT] Context: ${relevantChunks.length} chunks, ${context.length} chars`);
+    console.log(
+      `📚 [CHAT] Context built from ${sortedChunks.length} grouped chunks`
+    );
 
-    // Updated system message with multilingual support
-    const systemMessage = `You are the SOYOSOYO SACCO Assistant for SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD.
+    // === SYSTEM INSTRUCTIONS ===
+    const systemMessage = `
+You are the official **SOYOSOYO SACCO Virtual Assistant** for **SOYOSOYO MEDICARE CO-OPERATIVE SAVINGS & CREDIT SOCIETY LTD**.
 
 CRITICAL INSTRUCTIONS:
-- Answer ONLY using the SOYOSOYO SACCO documents below.
-- Multilingual: ${
-  targetLanguage 
-    ? `Respond in ${targetLanguage}. If the user's message is in another language, translate your response to ${targetLanguage}.`
-    : "Detect the user's input language and respond in the same language (e.g., Swahili for Swahili input, English for English input)."
-}
-- For financial questions (profit, revenue, income, expenses, earnings):
-  * Search for: INCOME STATEMENT, BALANCE SHEET, RETAINED EARNINGS
-  * Key terms: "TOTAL INCOME", "TOTAL EXPENSES", "RETAINED EARNINGS", "PROFIT"
-  * Calculate: PROFIT = TOTAL INCOME - TOTAL EXPENSES
-  * Excel data has "Unnamed:" headers - focus on VALUES not column names
-- For member/dividend questions: Look for "dividend", "member", "share capital", "distribution"
-- Provide specific numbers and amounts from documents
-- Use **bold** for important figures
-- If info not in documents, say: "I don't have that specific information in the SOYOSOYO SACCO documents I have access to."
-MATH/FORMATTING RULES:
-- Always show calculations in plain text style (example: ROA = (8811.29 ÷ 786613.44) × 100 = 1.12%)
-- Do NOT use LaTeX (\[ \], \( \), ^, _) or math markup
-- Keep it readable like a financial report
-RELEVANT SOYOSOYO SACCO DOCUMENTS:
-${context}`;
+- You must only use the SACCO documents provided in CONTEXT below.
+- When answering, use factual numbers, names, and terms exactly as written.
+- If data is missing, respond with: "I don’t have that specific information in the available SOYOSOYO SACCO documents."
+- For financial questions:
+  * Focus on INCOME STATEMENT, BALANCE SHEET, RETAINED EARNINGS.
+  * Use these formulas: PROFIT = TOTAL INCOME - TOTAL EXPENSES.
+  * Format all figures as plain text (e.g., 8811.29 ÷ 786613.44 × 100 = 1.12%).
+  * Do not use LaTeX or special math markup.
+- For member or dividend questions:
+  * Focus on words like “dividend”, “member”, “share capital”, “distribution”.
+- Always show final results rounded to the nearest whole number unless specified otherwise.
+- Keep your tone professional and concise, like a financial officer’s report.
+- ${
+      targetLanguage
+        ? `Respond strictly in ${targetLanguage}.`
+        : "Detect the input language automatically and reply in the same language."
+    }
 
-    // Build messages with history
+📘 **SOYOSOYO SACCO DOCUMENT CONTEXT STARTS BELOW**
+${context}
+📘 **CONTEXT ENDS**
+    `;
+
+    // === CONSTRUCT PROMPT ===
     const messagesForOpenAI = [
       { role: "system", content: systemMessage },
-      ...history.map(msg => ({ role: msg.role, content: msg.content })),
-      { role: "user", content: userMessage }
+      ...history.map((msg) => ({ role: msg.role, content: msg.content })),
+      { role: "user", content: userMessage },
     ];
 
+    // === OPENAI COMPLETION ===
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messagesForOpenAI,
-      max_tokens: 1000,
-      temperature: 0.1,
+      max_tokens: 1200,
+      temperature: 0.15,
     });
 
-    const aiResponse = response.choices[0].message.content || "I couldn't generate a response.";
-    console.log(`✅ [CHAT] Response: ${aiResponse.length} chars`);
-    console.log(`💰 [CHAT] Tokens:`, response.usage);
+    const aiResponse =
+      response.choices[0].message?.content ||
+      "I couldn’t generate a proper response.";
+    console.log(`✅ [CHAT] Response (${aiResponse.length} chars)`);
 
-    // Save to history
-    if (aiResponse !== "I couldn't generate a response.") {
-      await saveMessages(finalId, userMessage, aiResponse);
-    }
-
+    await saveMessages(finalId, userMessage, aiResponse);
     return { response: aiResponse, conversationId: finalId };
   } catch (error) {
     console.error("❌ [CHAT] Error:", error);
     const err = error instanceof Error ? error.message : "Unknown error";
-    
-    if (err.includes('insufficient_quota') || err.includes('rate_limit')) {
-      fallbackResponse = targetLanguage 
-        ? `I'm experiencing high demand. Please try again in a moment. (Responding in ${targetLanguage})`
-        : "I'm experiencing high demand. Please try again in a moment.";
-      await saveMessages(finalId, userMessage, fallbackResponse);
-      return { response: fallbackResponse, conversationId: finalId };
-    } else if (err.includes('invalid_api_key')) {
-      fallbackResponse = targetLanguage	
-        ? `Configuration issue. Please contact support. (Responding in ${targetLanguage})`
-        : "Configuration issue. Please contact support.";
-      await saveMessages(finalId, userMessage, fallbackResponse);
-      return { response: fallbackResponse, conversationId: finalId };
+
+    if (err.includes("insufficient_quota") || err.includes("rate_limit")) {
+      fallbackResponse =
+        "The system is busy due to high demand. Please try again shortly.";
+    } else if (err.includes("invalid_api_key")) {
+      fallbackResponse =
+        "Configuration issue — the OpenAI API key appears invalid.";
+    } else {
+      fallbackResponse =
+        "I'm experiencing technical difficulties. Please try again.";
     }
-    
-    fallbackResponse = targetLanguage 
-      ? `I'm experiencing technical difficulties. Please try again. (Responding in ${targetLanguage})`
-      : "I'm experiencing technical difficulties. Please try again.";
+
     await saveMessages(finalId, userMessage, fallbackResponse);
     return { response: fallbackResponse, conversationId: finalId };
   }
 }
 
-// Rest of your file remains unchanged
-export async function analyzeFileContent(
-  content: string,
-  fileName: string,
-  mimeType: string
-): Promise<string> {
+/* -------------------------------------------------------------------------- */
+/* 📄 File Analysis for Upload Summaries                                      */
+/* -------------------------------------------------------------------------- */
+export async function analyzeFileContent(content, fileName, mimeType) {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `Analyze file content and provide a brief summary for SACCO operations. ${
-            targetLanguage ? `Respond in ${targetLanguage}.` : "Use the same language as the input content if possible."
-          }`
+          content: `Analyze the following file for SACCO operations and summarize its key details in plain language.`,
         },
         {
           role: "user",
-          content: `Analyze ${fileName}: ${content.substring(0, 2000)}...`
-        }
+          content: `File: ${fileName}\nType: ${mimeType}\n\nContent Preview:\n${content.substring(
+            0,
+            2000
+          )}...`,
+        },
       ],
-      max_tokens: 200,
-      temperature: 0.1
+      max_tokens: 250,
+      temperature: 0.2,
     });
-    
-    return response.choices[0].message.content || "Analysis completed.";
+
+    return (
+      response.choices[0].message?.content || "Analysis completed successfully."
+    );
   } catch (error) {
-    console.error("File analysis error:", error);
-    return "Analysis completed.";
+    console.error("❌ [ANALYZE] Error:", error);
+    return "Could not analyze file content.";
   }
 }
 
-// Export for debug endpoint in routes
+/* -------------------------------------------------------------------------- */
+/* 🧾 Retrieve All Texts (Debug)                                              */
+/* -------------------------------------------------------------------------- */
 export async function getAllExtractedTexts() {
-  const files = await db.select({ extractedText: messages.extractedText }).from(uploadedFiles).where(isNotNull(uploadedFiles.extractedText));
-  return files.map(f => f.extractedText || '').join('\n\n---\n\n');
+  try {
+    const files = await db
+      .select({
+        text: uploadedFiles.extractedText,
+        filename: uploadedFiles.originalName,
+      })
+      .from(uploadedFiles)
+      .where(isNotNull(uploadedFiles.extractedText))
+      .orderBy(desc(uploadedFiles.uploadedAt))
+      .limit(15);
+
+    return files
+      .map(
+        (f) =>
+          `📄 ${f.filename}\n${(f.text || "").substring(0, 1000)}`
+      )
+      .join("\n\n---\n\n");
+  } catch (error) {
+    console.error("❌ [DEBUG] Error fetching extracted texts:", error);
+    return "Unable to retrieve texts from database.";
+  }
 }
