@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-SOYOSOYO SACCO CHATBOT + UPLOADER v13 – FERRARI EDITION (ROBUST EXTRACTION)
-- Merged: Complete uploader + interactive RAG chatbot
-- FIXED: Skip non-numeric rows in dividends; better column matching for financials
-- FIXED: PDF validation before extraction; ignore invalid files
-- FIXED: Deployment-safe: Skip interactive if non-TTY (e.g., Render)
-- NEW: Log skipped rows; improved error handling in extractors
+SOYOSOYO SACCO CHATBOT + UPLOADER v14 – FERRARI EDITION (MERGED IMPROVEMENTS)
+- Merged: My v13 RAG + Provided script's smart extraction (is_mostly_numeric, fitz PDFs, safe_float w/ regex)
+- ENHANCED: Header detection in financials, numeric col picking, robust filtering
+- FIXED: Better dirty data handling (e.g., "KES 1,000" → 1000)
 - Chunking: 1200 chars + 300 overlap for max context
 - Hybrid search: Vector + keyword, bilingual responses
-- Ready to run: python3 app.py
+- Ready to run: python3 app.py (install: pip install pymupdf)
 - Performance: Efficient SQL batches, validation, logging
 """
 
@@ -26,6 +24,7 @@ import numpy as np
 from openai import OpenAI
 import warnings
 import sys
+import fitz  # PyMuPDF for PDF extraction
 
 # ===================== CONFIG =====================
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -42,12 +41,34 @@ SUPPORTED_MIME = {
     '.csv': 'text/csv'
 }
 
-warnings.filterwarnings("ignore", message=r".*chunkSizeWarningLimit.*", category=UserWarning, module=r"(openpyxl|pdfplumber)")
+warnings.filterwarnings("ignore", message=r".*chunkSizeWarningLimit.*", category=UserWarning, module=r"openpyxl")
 
 if not DATABASE_URL or not OPENAI_API_KEY:
     raise ValueError("Missing DATABASE_URL or OPENAI_API_KEY")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ===================== UTILITIES (MERGED) =====================
+def safe_float(value):
+    """Safely convert to float or return 0 (merged: handles dirty strings like 'KES 1,000')."""
+    if pd.isna(value):
+        return 0.0
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            clean = re.sub(r"[^\d.\-]", "", value)  # Remove non-digits except . -
+            return float(clean) if clean else 0.0
+        return 0.0
+    except (ValueError, TypeError):
+        return 0.0
+
+def is_mostly_numeric(series):
+    """Return True if at least 50% of the column is numeric (from provided)."""
+    try:
+        return pd.to_numeric(series, errors="coerce").notna().mean() > 0.5
+    except Exception:
+        return False
 
 # ===================== DATE PARSER =====================
 MONTH_MAP = {
@@ -137,15 +158,6 @@ def generate_summary_embedding(chunks: List[str]) -> List[float]:
     valid = [e for e in embs if e and len(e) == 1536]
     return np.mean(valid, axis=0).tolist() if valid else []
 
-def is_valid_pdf(file_path: str) -> bool:
-    """Quick check if file is a valid PDF"""
-    try:
-        with open(file_path, 'rb') as f:
-            header = f.read(8)
-            return header.startswith(b'%PDF-')
-    except:
-        return False
-
 def extract_text(file_path: str) -> str:
     ext = Path(file_path).suffix.lower()
     try:
@@ -156,13 +168,17 @@ def extract_text(file_path: str) -> str:
                 lines.append(f"\n--- {sheet} ---\n{df.to_string(index=False)}")
             return re.sub(r'\s+', ' ', "\n".join(lines))
         elif ext == '.pdf':
-            if not is_valid_pdf(file_path):
-                print(f"Invalid PDF: {file_path} - skipping extraction")
+            # Merged: Use fitz for robust PDF extraction
+            print(f"📄 Extracting text from: {os.path.basename(file_path)}")
+            try:
+                text = ""
+                with fitz.open(file_path) as doc:
+                    for page in doc:
+                        text += page.get_text()
+                return re.sub(r'\s+', ' ', text.strip())
+            except Exception as e:
+                print(f"⚠️ PDF extraction failed: {e}")
                 return ""
-            import pdfplumber
-            with pdfplumber.open(file_path) as pdf:
-                text = "".join(p.extract_text() or "" for p in pdf.pages)
-                return re.sub(r'\s+', ' ', text)
         elif ext == '.csv':
             return re.sub(r'\s+', ' ', pd.read_csv(file_path).to_string(index=False))
         elif ext == '.txt':
@@ -172,16 +188,7 @@ def extract_text(file_path: str) -> str:
         print(f"Text extraction failed: {e}")
     return ""
 
-# ===================== STRUCTURED EXTRACTORS (ROBUST) =====================
-def safe_float(val):
-    """Safely convert to float, return 0 on failure"""
-    if pd.isna(val):
-        return 0.0
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return 0.0
-
+# ===================== STRUCTURED EXTRACTORS (ENHANCED MERGE) =====================
 def extract_member_dividends(file_path: str, file_id: int, cur):
     ext = Path(file_path).suffix.lower()
     if ext not in {'.xlsx', '.xls', '.csv'}:
@@ -192,17 +199,22 @@ def extract_member_dividends(file_path: str, file_id: int, cur):
             print(f"   Empty DataFrame - skipping")
             return
         df.columns = [str(c).strip().lower().replace(' ', '_').replace('#', 'num') for c in df.columns]
+        print(f"📘 Extracting member dividends from: {os.path.basename(file_path)}")
         print(f"   Member columns: {list(df.columns)}")
 
-        col_name = next((c for c in df.columns if 'name' in c), None)
+        col_name = next((c for c in df.columns if 'name' in c or 'member' in c), None)  # Merged: Broader match
         col_id   = next((c for c in df.columns if any(x in c for x in ['member', 'id', 'num'])), None)
         col_shares = next((c for c in df.columns if any(x in c for x in ['share', 'contrib'])), None)
         col_div_candidates = [c for c in df.columns if any(x in c for x in ['dividend', 'paid', 'payout'])]
-        col_div = col_div_candidates[0] if col_div_candidates else None
+        col_div = None
+        for c in col_div_candidates:
+            if is_mostly_numeric(df[c]):  # Merged: Pick mostly numeric col
+                col_div = c
+                break
         col_qual = next((c for c in df.columns if any(x in c for x in ['qualif', 'status', 'remark', 'qualification'])), None)
 
-        if not col_name:
-            print(f"   No 'name' column found - skipping structured extraction")
+        if not col_name or not col_div:
+            print("⚠️ No suitable name/dividend columns found - skipping structured extraction")
             return
 
         payout_date = parse_date_from_filename(os.path.basename(file_path))
@@ -213,14 +225,17 @@ def extract_member_dividends(file_path: str, file_id: int, cur):
         skipped = 0
         for idx, row in df.iterrows():
             try:
-                name = str(row[col_name]).strip() if col_name else None
+                name = str(row[col_name]).strip()
                 if not name or name.lower() in ['nan', 'none', '']:
                     skipped += 1
                     continue
 
                 member_id = str(row[col_id]).strip() if col_id else None
-                shares = round(safe_float(row[col_shares])) if col_shares else 0
-                dividends = round(safe_float(row[col_div])) if col_div else 0
+                shares = round(safe_float(row[col_shares])) if col_shares else 0  # Merged safe_float
+                dividends = round(safe_float(row[col_div]))  # Always apply
+                if dividends == 0:  # Merged: Skip zero divs
+                    skipped += 1
+                    continue
                 qualification = str(row[col_qual]).strip() if col_qual else None
 
                 cur.execute("""
@@ -238,7 +253,7 @@ def extract_member_dividends(file_path: str, file_id: int, cur):
                 skipped += 1
                 continue
 
-        print(f"   Inserted {inserted} member-dividend rows (skipped {skipped} invalid rows)")
+        print(f"✅ Extracted/Inserted {inserted} valid member records (skipped {skipped})")
     except Exception as e:
         print(f"   Member extraction failed: {e}")
 
@@ -247,22 +262,40 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
     if ext not in {'.xlsx', '.xls', '.csv'}:
         return
     try:
-        df = pd.read_excel(file_path, sheet_name=None, engine='openpyxl') if ext in {'.xlsx', '.xls'} else {'Sheet1': pd.read_csv(file_path)}
-        if not df:
+        dfs = pd.read_excel(file_path, sheet_name=None, engine='openpyxl') if ext in {'.xlsx', '.xls'} else {'Sheet1': pd.read_csv(file_path)}
+        if not dfs:
             print(f"   No sheets/DataFrame - skipping")
             return
 
         # Process each sheet
         total_inserted = 0
-        for sheet_name, sheet_df in df.items():
+        for sheet_name, sheet_df in dfs.items():
             if sheet_df.empty:
                 continue
-            sheet_df.columns = [str(c).strip().lower().replace(' ', '_').replace('#', 'num') for c in sheet_df.columns]
+            print(f"📊 Extracting financial lines from sheet '{sheet_name}': {os.path.basename(file_path)}")
+
+            # Merged: Header detection (check if row 0 mostly strings)
+            if sheet_df.iloc[0].apply(lambda x: isinstance(x, str)).mean() > 0.6:
+                sheet_df.columns = sheet_df.iloc[0].astype(str).str.lower().str.strip().str.replace(" ", "_")
+                sheet_df = sheet_df[1:].reset_index(drop=True)
+            else:
+                sheet_df.columns = [f"col_{i}" for i in range(sheet_df.shape[1])]
+
             print(f"   Financial sheet '{sheet_name}' columns: {list(sheet_df.columns)}")
 
-            # Better column detection: Find likely account/description (text-heavy), amount (numeric)
-            potential_accounts = [c for c in sheet_df.columns if any(k in c for k in ['account', 'line', 'description', 'item'])]
-            col_account = potential_accounts[0] if potential_accounts else next((c for c in sheet_df.columns if sheet_df[c].dtype == 'object'), None)
+            # Merged: Better col detection
+            col_account = next((c for c in sheet_df.columns if any(x in c for x in ["account", "description", "name", "line"])), None)
+            potential_amounts = [c for c in sheet_df.columns if any(x in c for x in ["amount", "total", "value", "balance"])]
+            col_amount = None
+            for c in potential_amounts:
+                if is_mostly_numeric(sheet_df[c]):  # Pick mostly numeric
+                    col_amount = c
+                    break
+            if not col_amount:
+                # Fallback: Max variance numeric col
+                numeric_cols = [c for c in sheet_df.columns if pd.api.types.is_numeric_dtype(sheet_df[c])]
+                if numeric_cols:
+                    col_amount = max(numeric_cols, key=lambda c: sheet_df[c].var() or 0)
 
             potential_types = [c for c in sheet_df.columns if any(k in c for k in ['type', 'category'])]
             col_type = potential_types[0] if potential_types else None
@@ -270,15 +303,8 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
             potential_dates = [c for c in sheet_df.columns if 'date' in c]
             col_date = potential_dates[0] if potential_dates else None
 
-            # Find numeric columns for amount (sum abs > threshold to detect)
-            numeric_cols = [c for c in sheet_df.columns if pd.api.types.is_numeric_dtype(sheet_df[c])]
-            col_amount = None
-            if numeric_cols:
-                # Pick the one with highest variance or sum (likely the main amount col)
-                col_amount = max(numeric_cols, key=lambda c: abs(sheet_df[c].sum()) or 0)
-
-            if not col_account and not col_amount:
-                print(f"   No suitable account/amount columns in '{sheet_name}' - skipping sheet")
+            if not col_account or not col_amount:
+                print(f"⚠️ No suitable account/amount columns in '{sheet_name}' - skipping sheet")
                 continue
 
             print(f"   Using: Account={col_account}, Amount={col_amount}, Type={col_type}, Date={col_date}")
@@ -287,13 +313,13 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
             skipped = 0
             for idx, row in sheet_df.iterrows():
                 try:
-                    account = str(row[col_account]).strip() if col_account and pd.notna(row[col_account]) else None
-                    if not account or account.lower() in ['nan', 'none', '', 'total', 'grand total']:  # Skip totals/summary
+                    account = str(row[col_account]).strip()
+                    if not account or account.lower() in ['nan', 'none', '', 'total', 'grand total']:
                         skipped += 1
                         continue
 
-                    amount = round(safe_float(row[col_amount])) if col_amount else 0
-                    if amount == 0:  # Skip zero-amount rows if possible
+                    amount = round(safe_float(row[col_amount]))  # Merged safe_float
+                    if amount == 0:
                         skipped += 1
                         continue
 
@@ -316,11 +342,11 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
             print(f"   Sheet '{sheet_name}': Inserted {inserted} rows (skipped {skipped})")
             total_inserted += inserted
 
-        print(f"   Total inserted {total_inserted} financial rows across sheets")
+        print(f"✅ Extracted/Inserted {total_inserted} valid financial records across sheets")
     except Exception as e:
         print(f"   Financial extraction failed: {e}")
 
-# ===================== ENHANCED HYBRID SEARCH WITH STRUCTURED QUERIES =====================
+# ===================== HYBRID SEARCH (UNCHANGED) =====================
 def get_structured_context(question: str, cur) -> str:
     """Query structured tables for comprehensive data (e.g., full member lists)"""
     q_lower = question.lower()
@@ -378,7 +404,7 @@ def get_structured_context(question: str, cur) -> str:
 
     return structured_ctx
 
-def ask(question: str, cur, top_k: int = 10) -> str:  # Increased top_k
+def ask(question: str, cur, top_k: int = 10) -> str:
     # Get structured context first
     structured_ctx = get_structured_context(question, cur)
 
@@ -401,7 +427,7 @@ def ask(question: str, cur, top_k: int = 10) -> str:  # Increased top_k
             FROM document_chunks dc JOIN uploaded_files uf ON dc.file_id = uf.id
             WHERE uf.processed = true AND dc.chunk_text ILIKE ANY(%s)
         )
-        (SELECT chunk_text, original_name, sim FROM vec_res WHERE sim > 0.5)  -- Lowered threshold
+        (SELECT chunk_text, original_name, sim FROM vec_res WHERE sim > 0.5)
         UNION ALL (SELECT chunk_text, original_name, sim FROM kw_res)
         ORDER BY sim DESC LIMIT %s;
         """
@@ -420,13 +446,13 @@ Context (RAG):
 {full_context}
 
 Question: {question}
-Answer in Swahili or English, comprehensive and detailed, list all relevant info:"""  # Changed to "comprehensive and detailed"
+Answer in Swahili or English, comprehensive and detailed, list all relevant info:"""
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=1000  # Added explicit max_tokens for longer responses
+            max_tokens=1000
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
@@ -435,12 +461,12 @@ Answer in Swahili or English, comprehensive and detailed, list all relevant info
 
 # ===================== MAIN =====================
 def main():
-    print("SOYOSOYO SACCO CHATBOT + UPLOADER v13 – FERRARI EDITION (ROBUST EXTRACTION)")
+    print("SOYOSOYO SACCO CHATBOT + UPLOADER v14 – FERRARI EDITION (MERGED IMPROVEMENTS)")
 
     conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
 
-    # STEP 1: ENSURE SCHEMA (Clean recreation to fix type mismatches)
+    # STEP 1: ENSURE SCHEMA
     print("Dropping existing tables for clean schema (data loss expected)...")
     cur.execute("DROP TABLE IF EXISTS member_dividends CASCADE;")
     cur.execute("DROP TABLE IF EXISTS financial_report_lines CASCADE;")
@@ -503,7 +529,7 @@ def main():
         CREATE INDEX IF NOT EXISTS idx_financial_account ON financial_report_lines (account);
     """)
     conn.commit()
-    print("Schema ready (freshly recreated)")
+    print("✅ Database schema verified and ready.")
 
     # STEP 2: UPLOAD LOGIC
     files = []
@@ -584,8 +610,8 @@ def main():
                 """, (
                     file_info["filename"], file_info["filename"], mime,
                     os.path.getsize(path),
-                    text,  # Full extracted text here for reference
-                    json.dumps({"file_type": file_info["type"], "upload_method": "v13"}),
+                    text[:15000],  # Merged: Trim like provided
+                    json.dumps({"file_type": file_info["type"], "upload_method": "v14"}),
                     content, summary_emb
                 ))
                 file_id = cur.fetchone()[0]
@@ -630,41 +656,36 @@ def main():
                     except:
                         pass
 
-        # Test queries (improved to filter None/0)
-        print("\nTEST QUERIES")
+        # Merged: Enhanced summary (counts + bad rows)
+        print("\n📊 DATABASE SUMMARY")
         cur.execute("""
-            SELECT name, shares, dividends, qualification 
-            FROM member_dividends 
-            WHERE name IS NOT NULL AND shares > 0 
-            ORDER BY id DESC LIMIT 3
+            SELECT
+                (SELECT COUNT(*) FROM uploaded_files WHERE processed = true) AS total_files,
+                (SELECT COALESCE(SUM(LENGTH(extracted_text)),0) FROM uploaded_files) AS total_characters,
+                ROUND(
+                    (SELECT COALESCE(SUM(LENGTH(extracted_text)),0) / NULLIF(COUNT(*),0) FROM uploaded_files WHERE processed = true),
+                    2
+                ) AS avg_chars_per_file
         """)
-        print("Latest 3 members:")
-        members = cur.fetchall()
-        if members:
-            for r in members:
-                print(f"   → {r[0]} | Shares: {r[1]} | Div: {r[2]} | {r[3]}")
-        else:
-            print("   No valid members found")
+        summary = cur.fetchone()
+        print(f"Total Processed Files: {summary[0]}")
+        print(f"Total Characters: {summary[1]}")
+        print(f"Average per File: {summary[2]}")
 
-        cur.execute("""
-            SELECT account, line_type, amount 
-            FROM financial_report_lines 
-            WHERE account IS NOT NULL AND amount != 0 
-            ORDER BY id DESC LIMIT 3
-        """)
-        print("Latest 3 financial lines:")
-        lines = cur.fetchall()
-        if lines:
-            for r in lines:
-                print(f"   → {r[0]} | Type: {r[1]} | Amt: {r[2]}")
-        else:
-            print("   No valid financial lines found")
+        bad_financials = cur.execute(
+            "SELECT COUNT(*) FROM financial_report_lines WHERE account IS NULL OR amount = 0"
+        ).scalar()
+        bad_dividends = cur.execute(
+            "SELECT COUNT(*) FROM member_dividends WHERE dividends = 0 OR name IS NULL"
+        ).scalar()
+        print(f"⚠️ Incomplete Financial Lines: {bad_financials}")
+        print(f"⚠️ Invalid Dividend Entries: {bad_dividends}")
 
         print("\nUPLOAD COMPLETE")
 
     # STEP 3: INTERACTIVE CHATBOT (SKIP IF NON-INTERACTIVE ENV)
     if sys.stdin.isatty():  # Check if interactive (not in Render/CI)
-        print("\nCHATBOT READY. Type 'quit' to exit.")
+        print("\n💬 CHATBOT READY. Type 'quit' to exit.")
         while True:
             try:
                 q = input("\nYou: ").strip()
