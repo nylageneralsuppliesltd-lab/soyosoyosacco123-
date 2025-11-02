@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION (FIXED)
+SOYOSOYO SACCO CHATBOT + UPLOADER v12 – FERRARI EDITION (ENHANCED RETRIEVAL)
 - Merged: Complete uploader + interactive RAG chatbot
-- Optimized: Batch embeddings, robust error handling, full schema
+- NEW: Structured queries for member lists, dividends – fixes incomplete listings
+- Optimized: Higher top_k=10, lower sim=0.5, "comprehensive" prompt
 - Chunking: 1200 chars + 300 overlap for max context
 - Hybrid search: Vector + keyword, bilingual responses
 - Ready to run: python3 app.py
 - Performance: Efficient SQL batches, validation, logging
-- FIXED: Clean schema recreation with drops to resolve type mismatches
+- FIXED: Full info display via DB queries on structured data
 """
 
 import os
@@ -240,9 +241,69 @@ def extract_financial_lines(file_path: str, file_id: int, cur):
     except Exception as e:
         print(f"   Extract failed for {os.path.basename(file_path)}: {e}")
 
-# ===================== HYBRID SEARCH =====================
-def ask(question: str, cur, top_k: int = 5) -> str:
-    # Embed question
+# ===================== ENHANCED HYBRID SEARCH WITH STRUCTURED QUERIES =====================
+def get_structured_context(question: str, cur) -> str:
+    """Query structured tables for comprehensive data (e.g., full member lists)"""
+    q_lower = question.lower()
+    structured_ctx = ""
+
+    # Member/Dividends queries
+    if any(kw in q_lower for kw in ['list all', 'all names', 'members', 'dividends file', 'who is in', 'see in the file']):
+        cur.execute("""
+            SELECT DISTINCT ON (name) name, shares, dividends, qualification, payout_date
+            FROM member_dividends md JOIN uploaded_files uf ON md.file_id = uf.id
+            WHERE uf.processed = true
+            ORDER BY name, payout_date DESC NULLS LAST
+        """)
+        members = cur.fetchall()
+        if members:
+            structured_ctx += "\n\nSTRUCTURED DATA: Full Member Dividends List\n"
+            for m in members:
+                structured_ctx += f"- {m[0]}: Shares={m[1]}, Dividends={m[2]}, Qual={m[3]}, Date={m[4]}\n"
+            structured_ctx += f"(Total: {len(members)} members)"
+
+    # Specific member check
+    elif any(kw in q_lower for kw in ['is', 'there', 'ngari', 'chai', 'jeff']):
+        name_match = re.search(r'([A-Z][a-z]+ [A-Z][a-z]+)', question)
+        if name_match:
+            name = name_match.group(1)
+            cur.execute("""
+                SELECT name, shares, dividends, qualification, payout_date
+                FROM member_dividends md JOIN uploaded_files uf ON md.file_id = uf.id
+                WHERE uf.processed = true AND name ILIKE %s
+                ORDER BY payout_date DESC LIMIT 5
+            """, (f"%{name}%",))
+            members = cur.fetchall()
+            if members:
+                structured_ctx += "\n\nSTRUCTURED DATA: Matching Members\n"
+                for m in members:
+                    structured_ctx += f"- {m[0]}: Shares={m[1]}, Dividends={m[2]}, Qual={m[3]}, Date={m[4]}\n"
+
+    # Financial/audit queries
+    if any(kw in q_lower for kw in ['audit', 'financial', 'tools']):
+        cur.execute("""
+            SELECT account, line_type, amount, line_date
+            FROM financial_report_lines frl JOIN uploaded_files uf ON frl.file_id = uf.id
+            WHERE uf.processed = true
+            ORDER BY line_date DESC, amount DESC LIMIT 10
+        """)
+        lines = cur.fetchall()
+        if lines:
+            structured_ctx += "\n\nSTRUCTURED DATA: Recent Financial Lines\n"
+            for l in lines:
+                structured_ctx += f"- {l[0]} ({l[1]}): KES {l[2]} on {l[3]}\n"
+
+    # Join/how to join
+    if 'join' in q_lower:
+        structured_ctx += "\n\nSTRUCTURED DATA: Membership Info\nTo join SOYOSOYO SACCO, contact the secretary with ID, shares contribution, and application form. Policies in uploaded bylaws."
+
+    return structured_ctx
+
+def ask(question: str, cur, top_k: int = 10) -> str:  # Increased top_k
+    # Get structured context first
+    structured_ctx = get_structured_context(question, cur)
+
+    # Embed question for RAG
     try:
         emb = client.embeddings.create(input=question, model="text-embedding-ada-002").data[0].embedding
         vec = '[' + ','.join(map(str, emb)) + ']'
@@ -261,28 +322,32 @@ def ask(question: str, cur, top_k: int = 5) -> str:
             FROM document_chunks dc JOIN uploaded_files uf ON dc.file_id = uf.id
             WHERE uf.processed = true AND dc.chunk_text ILIKE ANY(%s)
         )
-        (SELECT chunk_text, original_name, sim FROM vec_res WHERE sim > 0.6)
+        (SELECT chunk_text, original_name, sim FROM vec_res WHERE sim > 0.5)  -- Lowered threshold
         UNION ALL (SELECT chunk_text, original_name, sim FROM kw_res)
         ORDER BY sim DESC LIMIT %s;
         """
         cur.execute(sql, (vec, top_k*2, kws, top_k))
         results = cur.fetchall()
         if not results:
-            return "I don't have that information in the SACCO documents."
+            rag_ctx = "No relevant text chunks found."
+        else:
+            rag_ctx = "\n\n".join([f"[{r[2]:.3f}] {r[1]}:\n{r[0]}" for r in results])
 
-        context = "\n\n".join([f"[{r[2]:.3f}] {r[1]}:\n{r[0]}" for r in results])
-        prompt = f"""You are a SOYOSOYO SACCO assistant. Use only the context below.
+        full_context = f"{rag_ctx}{structured_ctx}"
 
-Context:
-{context}
+        prompt = f"""You are a SOYOSOYO SACCO assistant. Use the context and structured data below to answer comprehensively.
+
+Context (RAG):
+{full_context}
 
 Question: {question}
-Answer in Swahili or English, short and clear:"""
+Answer in Swahili or English, comprehensive and detailed, list all relevant info:"""  # Changed to "comprehensive and detailed"
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
+            temperature=0.3,
+            max_tokens=1000  # Added explicit max_tokens for longer responses
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
@@ -291,7 +356,7 @@ Answer in Swahili or English, short and clear:"""
 
 # ===================== MAIN =====================
 def main():
-    print("SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION (FIXED)")
+    print("SOYOSOYO SACCO CHATBOT + UPLOADER v12 – FERRARI EDITION (ENHANCED RETRIEVAL)")
 
     conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
@@ -355,11 +420,13 @@ def main():
         CREATE INDEX IF NOT EXISTS idx_files_processed ON uploaded_files (processed);
         CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
         CREATE INDEX IF NOT EXISTS idx_chunks_file ON document_chunks (file_id);
+        CREATE INDEX IF NOT EXISTS idx_members_name ON member_dividends (name);
+        CREATE INDEX IF NOT EXISTS idx_financial_account ON financial_report_lines (account);
     """)
     conn.commit()
     print("Schema ready (freshly recreated)")
 
-    # STEP 2: UPLOAD LOGIC
+    # STEP 2: UPLOAD LOGIC (unchanged)
     files = []
     for d in SCAN_DIRECTORIES:
         if not os.path.exists(d):
@@ -439,7 +506,7 @@ def main():
                     file_info["filename"], file_info["filename"], mime,
                     os.path.getsize(path),
                     text,  # Full extracted text here for reference
-                    json.dumps({"file_type": file_info["type"], "upload_method": "v11"}),
+                    json.dumps({"file_type": file_info["type"], "upload_method": "v12"}),
                     content, summary_emb
                 ))
                 file_id = cur.fetchone()[0]
