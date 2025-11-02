@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION
+SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION (FIXED)
 - Merged: Complete uploader + interactive RAG chatbot
 - Optimized: Batch embeddings, robust error handling, full schema
 - Chunking: 1200 chars + 300 overlap for max context
 - Hybrid search: Vector + keyword, bilingual responses
 - Ready to run: python3 app.py
 - Performance: Efficient SQL batches, validation, logging
+- FIXED: Clean schema recreation with drops to resolve type mismatches
 """
 
 import os
@@ -290,12 +291,19 @@ Answer in Swahili or English, short and clear:"""
 
 # ===================== MAIN =====================
 def main():
-    print("SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION")
+    print("SOYOSOYO SACCO CHATBOT + UPLOADER v11 – FERRARI EDITION (FIXED)")
 
     conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
 
-    # STEP 1: ENSURE SCHEMA
+    # STEP 1: ENSURE SCHEMA (Clean recreation to fix type mismatches)
+    print("Dropping existing tables for clean schema (data loss expected)...")
+    cur.execute("DROP TABLE IF EXISTS member_dividends CASCADE;")
+    cur.execute("DROP TABLE IF EXISTS financial_report_lines CASCADE;")
+    cur.execute("DROP TABLE IF EXISTS document_chunks CASCADE;")
+    cur.execute("DROP TABLE IF EXISTS uploaded_files CASCADE;")
+    print("Tables dropped. Recreating schema...")
+
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS uploaded_files (
@@ -349,7 +357,7 @@ def main():
         CREATE INDEX IF NOT EXISTS idx_chunks_file ON document_chunks (file_id);
     """)
     conn.commit()
-    print("Schema ready")
+    print("Schema ready (freshly recreated)")
 
     # STEP 2: UPLOAD LOGIC
     files = []
@@ -421,7 +429,7 @@ def main():
             mime = SUPPORTED_MIME.get(Path(path).suffix.lower(), 'application/octet-stream')
 
             try:
-                # INSERT FILE (processed = FALSE)
+                # INSERT FILE (processed = FALSE initially)
                 cur.execute("""
                     INSERT INTO uploaded_files
                     (filename, original_name, mime_type, size, extracted_text, metadata, content, embedding)
