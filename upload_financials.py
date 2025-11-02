@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-SMART DOCUMENT UPLOADER v5 - FULLY AUTOMATIC
-- Auto-detects monthly files by date in filename
-- Keeps only the LATEST monthly file per category
-- Deletes old from DB + disk
-- Static files: upload once
+SMART DOCUMENT UPLOADER v6 - FULLY AUTOMATIC + STRUCTURED
+- member_dividends  → per-row DB entries
+- financial_report_lines → per-row DB entries
+- Auto-detects columns, dates, file types
+- No to_string() → no misalignment
 """
 
 import pandas as pd
@@ -14,6 +14,7 @@ import base64
 import json
 import glob
 import re
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -35,6 +36,14 @@ SUPPORTED_MIME = {
     '.csv': 'text/csv'
 }
 
+# Silence openpyxl/pdfplumber warnings
+warnings.filterwarnings(
+    "ignore",
+    message=r".*chunkSizeWarningLimit.*",
+    category=UserWarning,
+    module=r"(openpyxl|pdfplumber)"
+)
+
 if not DATABASE_URL or not OPENAI_API_KEY:
     raise ValueError("Missing DATABASE_URL or OPENAI_API_KEY")
 
@@ -50,7 +59,6 @@ MONTH_MAP = {
 
 def parse_date_from_filename(filename: str) -> Optional[datetime]:
     text = filename.lower().replace('_', ' ').replace('-', ' ')
-    # Pattern 1: [Day] Month Year
     m = re.search(r'\b(?:\d{1,2}\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|'
                   r'january|february|march|april|may|june|july|august|september|october|november|december)'
                   r'\s+(\d{4})\b', text)
@@ -60,7 +68,6 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
         if month:
             return datetime(int(year), month, 1)
 
-    # Pattern 2: YYYY-MM
     m = re.search(r'\b(\d{4})[._-](\d{2})\b', text)
     if m:
         year, month = m.groups()
@@ -69,7 +76,6 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
         except:
             pass
 
-    # Pattern 3: Q1/Q2/Q3/Q4 2025
     m = re.search(r'\bQ([1-4])\s*(\d{4})\b', text, re.IGNORECASE)
     if m:
         q, year = m.groups()
@@ -81,16 +87,16 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
 # ===================== CLASSIFIER =====================
 def classify_and_date_file(file_path: str) -> Dict[str, Any]:
     filename = os.path.basename(file_path)
-    file_type = "sacco_document"
     lower = filename.lower()
+    file_type = "sacco_document"
 
-    if any(k in lower for k in ['financial', 'budget', 'income', 'expense']):
+    if any(k in lower for k in ['financial', 'budget', 'income', 'expense', 'profit', 'balance']):
         file_type = "financial_report"
-    elif any(k in lower for k in ['member', 'dividend', 'payout']):
+    elif any(k in lower for k in ['member', 'dividend', 'payout', 'share']):
         file_type = "member_dividend"
     elif any(k in lower for k in ['loan', 'lending']):
         file_type = "loan_document"
-    elif any(k in lower for k in ['bylaw', 'policy', 'constitution']):
+    elif any(k in lower for k in ['bylaw', 'policy']):
         file_type = "policy_document"
 
     return {
@@ -153,9 +159,88 @@ def extract_text(file_path: str) -> str:
         print(f"Text extraction failed: {e}")
     return "Text extraction failed"
 
+# ===================== STRUCTURED EXTRACTORS =====================
+def extract_member_dividends_flexible(file_path: str, file_id: int, cur: psycopg.Cursor):
+    ext = Path(file_path).suffix.lower()
+    if ext not in {'.xlsx', '.xls', '.csv'}:
+        return
+    try:
+        df = pd.read_excel(file_path, engine='openpyxl') if ext in {'.xlsx', '.xls'} else pd.read_csv(file_path)
+        if df.empty:
+            return
+        df.columns = [c.strip().lower().replace(' ', '_').replace('#', 'num') for c in df.columns]
+
+        col_name = next((c for c in df.columns if 'name' in c), None)
+        col_member_id = next((c for c in df.columns if any(x in c for x in ['member', 'id', 'num'])), None)
+        col_shares = next((c for c in df.columns if any(x in c for x in ['share', 'contrib'])), None)
+        col_dividends = next((c for c in df.columns if any(x in c for x in ['dividend', 'paid', 'payout'])), None)
+        col_qual = next((c for c in df.columns if any(x in c for x in ['qualif', 'status', 'remark'])), None)
+
+        payout_date = parse_date_from_filename(os.path.basename(file_path))
+        if payout_date:
+            payout_date = payout_date.date()
+
+        inserted = 0
+        for _, row in df.iterrows():
+            cur.execute("""
+                INSERT INTO member_dividends
+                (file_id, name, member_id, shares, dividends, qualification, payout_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                file_id,
+                str(row[col_name]).strip() if col_name else None,
+                str(row[col_member_id]).strip() if col_member_id else None,
+                float(row[col_shares] or 0) if col_shares and pd.notna(row[col_shares]) else 0,
+                float(row[col_dividends] or 0) if col_dividends and pd.notna(row[col_dividends]) else 0,
+                str(row[col_qual]).strip() if col_qual else None,
+                payout_date
+            ))
+            inserted += 1
+        print(f"   Inserted {inserted} member-dividend rows")
+    except Exception as e:
+        print(f"   Member-dividend extraction failed: {e}")
+
+def extract_financial_lines_flexible(file_path: str, file_id: int, cur: psycopg.Cursor):
+    ext = Path(file_path).suffix.lower()
+    if ext not in {'.xlsx', '.xls', '.csv'}:
+        return
+    try:
+        df = pd.read_excel(file_path, engine='openpyxl') if ext in {'.xlsx', '.xls'} else pd.read_csv(file_path)
+        if df.empty:
+            return
+        df.columns = [c.strip().lower().replace(' ', '_').replace('#', 'num') for c in df.columns]
+
+        col_account = next((c for c in df.columns if any(x in c for x in ['account', 'description', 'item'])), None)
+        col_category = next((c for c in df.columns if any(x in c for x in ['category', 'type', 'group'])), None)
+        col_amount = next((c for c in df.columns if any(x in c for x in ['amount', 'value', 'total', 'balance'])), None)
+        col_desc = next((c for c in df.columns if any(x in c for x in ['note', 'remark', 'desc'])), None)
+
+        period = parse_date_from_filename(os.path.basename(file_path))
+        if period:
+            period = period.date()
+
+        inserted = 0
+        for _, row in df.iterrows():
+            cur.execute("""
+                INSERT INTO financial_report_lines
+                (file_id, account, category, amount, period, description)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                file_id,
+                str(row[col_account]).strip() if col_account else None,
+                str(row[col_category]).strip() if col_category else None,
+                float(row[col_amount] or 0) if col_amount and pd.notna(row[col_amount]) else 0,
+                period,
+                str(row[col_desc]).strip() if col_desc else None
+            ))
+            inserted += 1
+        print(f"   Inserted {inserted} financial report lines")
+    except Exception as e:
+        print(f"   Financial extraction failed: {e}")
+
 # ===================== MAIN =====================
 def main():
-    print("SMART UPLOADER v5 - FULLY AUTOMATIC MONTHLY REFRESH")
+    print("SMART UPLOADER v6 - FULLY STRUCTURED")
 
     files = []
     for dir_path in SCAN_DIRECTORIES:
@@ -178,7 +263,7 @@ def main():
     cur = conn.cursor()
 
     try:
-        # === 1. FIND LATEST MONTHLY PER TYPE ===
+        # === 1. LATEST MONTHLY PER TYPE ===
         latest_by_type = {}
         for mf in monthly_files:
             key = mf["type"]
@@ -231,18 +316,25 @@ def main():
                 RETURNING id
             """, (
                 file_info["filename"], file_info["filename"], mime,
-                os.path.getsize(path), text,
-                json.dumps({"file_type": file_info["type"], "upload_method": "v5", "date": datetime.now().isoformat()}),
+                os.path.getsize(path), "Structured data in member_dividends/financial_report_lines",
+                json.dumps({"file_type": file_info["type"], "upload_method": "v6", "date": datetime.now().isoformat()}),
                 content, summary_emb
             ))
             file_id = cur.fetchone()[0]
 
+            # Chunks
             for i, (chunk, emb) in enumerate(zip(chunks, chunk_embs)):
                 if emb:
                     cur.execute("""
                         INSERT INTO document_chunks (file_id, chunk_text, chunk_index, embedding)
                         VALUES (%s, %s, %s, %s)
                     """, (file_id, chunk, i, emb))
+
+            # Structured data
+            if file_info["type"] == "member_dividend":
+                extract_member_dividends_flexible(path, file_id, cur)
+            elif file_info["type"] == "financial_report":
+                extract_financial_lines_flexible(path, file_id, cur)
 
         # === 5. DELETE OLD FROM DISK ===
         if DELETE_OLD_FROM_DISK and old_names:
